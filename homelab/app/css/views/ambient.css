@@ -7,16 +7,22 @@
 .amb-stage { position: absolute; top: 0; right: 0; bottom: 0; left: 0; }
 .amb-scrim { position: absolute; left: 0; right: 0; bottom: 0; height: 60%; background: linear-gradient(0deg, rgba(0, 0, 0, .75), rgba(0, 0, 0, 0)); pointer-events: none; }
 .amb-info { position: absolute; left: 60px; right: 60px; bottom: 48px; display: flex; justify-content: space-between; align-items: flex-end; }
-.amb-time { font-size: 230px; line-height: .78; letter-spacing: -.04em; }
-.amb-date { font-family: var(--serif); font-size: 38px; margin-top: 16px; }
+.amb-time { font-size: 230px; line-height: .78; letter-spacing: -.04em; font-weight: 500; }
+.amb-date { font-family: var(--serif); font-size: 40px; font-weight: 400; margin-top: 16px; }
 .amb-right { display: flex; flex-direction: column; align-items: flex-end; gap: 14px; }
 .amb-wx { display: flex; align-items: center; gap: 12px; }
-.amb-wx .num { font-size: 72px; line-height: .8; }
-.amb-wx small { font-family: var(--serif); font-size: 26px; font-style: italic; max-width: 220px; line-height: 1.05; }
+.amb-wx .num { font-size: 72px; line-height: .8; font-weight: 500; }
+.amb-wx-meta { display: flex; flex-direction: column; gap: 4px; align-items: flex-start; }
+.amb-wx-meta b { font-family: var(--serif); font-size: 30px; font-weight: 400; }
+.amb-wx-meta span { font-family: var(--serif); font-size: 24px; opacity: .9; }
+/* Where and when, top-left, always on */
+.amb-cap { position: absolute; left: 0; right: 0; top: 0; padding: 36px 60px 70px; font-family: var(--serif); font-size: 28px; font-weight: 400; pointer-events: none;
+  background: linear-gradient(180deg, rgba(0, 0, 0, .5), rgba(0, 0, 0, 0)); }
+.amb-cap b { color: var(--warm); font-weight: 400; font-style: italic; }
 .amb-next {
   display: inline-flex; align-items: center; gap: 10px; height: 52px; padding: 0 20px; border-radius: 999px;
   background: rgba(255, 255, 255, .16);
-  font-size: 20px; font-weight: 700;
+  font-family: var(--serif); font-size: 24px; font-weight: 400;
 }
 .amb-next i { width: 12px; height: 12px; border-radius: 50%; background: var(--c); box-shadow: 0 0 0 2px #fff; }
 .amb-who { display: flex; gap: 8px; }

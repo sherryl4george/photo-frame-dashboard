@@ -335,6 +335,7 @@
           if (e.target.closest('[data-checks]') && D.checks) { checksSheet(); return; }
           if (e.target.closest('[data-energy]')) { App.energySheet(); return; }
           var g = e.target.closest('[data-go]');
+          if (g && g.classList.contains('h-photo') && V.slides && V.slides.current) App.pendingPhoto = V.slides.current.photos[0].id;
           if (g) App.go(g.dataset.go);
         });
         V.slides = new App.Slideshow(el.querySelector('.h-photo-stage'), { layout: 'cover', captions: false, interval: 12000, onChange: photoCaption });

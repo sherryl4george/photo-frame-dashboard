@@ -19,17 +19,17 @@
 }
 .polaroid-img { width: 660px; height: 470px; overflow: hidden; background: #ddd; }
 .polaroid--p .polaroid-img { width: 420px; height: 560px; }
-.polaroid figcaption { display: flex; justify-content: space-between; align-items: baseline; gap: 20px; padding: 16px 6px 20px; color: var(--ink); font-size: 30px; }
+.polaroid figcaption { display: flex; justify-content: space-between; align-items: baseline; gap: 20px; padding: 16px 6px 20px; color: var(--ink); font-family: var(--serif); font-style: italic; font-size: 32px; font-weight: 400; }
 
 .slide--cover::after, .slide--pair::after, .slide--collage::after, .slide--fit::after {
   content: ''; position: absolute; left: 0; right: 0; bottom: 0; height: 55%;
   background: linear-gradient(0deg, rgba(0, 0, 0, .7), rgba(0, 0, 0, 0)); pointer-events: none;
 }
 .cap { position: absolute; left: 44px; bottom: 40px; z-index: 2; color: #fff; max-width: 70%; opacity: .7; }
-.cap-kicker { font-size: 15px; font-weight: 800; letter-spacing: .12em; text-transform: uppercase; }
+.cap-kicker { font-family: var(--serif); font-size: 26px; font-weight: 400; font-style: italic; }
 .cap-kicker b { color: var(--warm); }
-.cap-date { font-size: 88px; line-height: .95; margin-top: 8px; }
-.cap--m .cap-date { font-size: 60px; }
+.cap-date { font-family: var(--serif); font-size: 84px; font-weight: 400; line-height: .95; margin-top: 8px; letter-spacing: -.01em; }
+.cap--m .cap-date { font-size: 58px; }
 
 /* Photos view chrome */
 .photos { position: absolute; top: 0; right: 0; bottom: 0; left: 0; background: #000; color: #fff; overflow: hidden; }

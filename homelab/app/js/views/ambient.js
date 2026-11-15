@@ -4,13 +4,21 @@
   var D = window.DATA, $ = App.$;
   var amb = { show: null }, shiftTimer = null;
 
+  // Current conditions, the day's range and feels-like.
+  function weatherBlock(w) {
+    var W = D.weather;
+    if (!w) return '';
+    return '<div class="amb-wx">' + App.icon(w.cond, 44) + '<span class="num">' + w.temp + '°</span>' +
+      '<div class="amb-wx-meta"><b>' + App.esc(w.label) + '</b><span>H ' + w.hi + '° · L ' + w.lo + '°' + (W ? ' · Feels ' + W.feels + '°' : '') + '</span></div></div>';
+  }
+
   function ambientInfo() {
     var n = App.now(), w = App.weatherNow(), next = App.nextEvent();
     var tracked = D.people.filter(function (p) { return p.tracked; });
     return '<div class="amb-clock"><div class="amb-time num">' + App.fmt.time(n, false) + '</div>' +
       '<div class="amb-date">' + App.fmt.day(n) + ', ' + App.fmt.month(n) + ' ' + n.getDate() + '</div></div>' +
       '<div class="amb-right">' +
-      (w ? '<div class="amb-wx">' + App.icon(w.cond, 44) + '<span class="num">' + w.temp + '°</span><small>' + w.summary + '</small></div>' : '') +
+      weatherBlock(w) +
       (next ? '<div class="amb-next" style="' + App.pstyle(App.evColor(next)) + '"><i></i>' + App.esc(next.title) + ' · ' + App.fmt.time(next.start) + '</div>' : '') +
       (tracked.length ? '<div class="amb-who">' + tracked.map(function (p) { return App.avatar(p, 34, p.home ? '' : 'avatar--away'); }).join('') + '</div>' : '') +
       '</div>';
@@ -36,10 +44,20 @@
     App.$$('.amb-info, .nt-inner').forEach(function (el) { el.style.transform = 'translate(' + x + 'px,' + y + 'px)'; });
   }
 
+  // Where and when the photo was taken, always on screen in one small line.
+  function showCaption(slide) {
+    var p = slide && slide.photos[0], el = $('#ambient .amb-cap');
+    if (!el || !p) return;
+    var m = App.photoMeta(p);
+    el.innerHTML = (m.onThisDay ? '<b>On this day</b> · ' : '') + (m.place ? App.esc(m.place) + ' · ' : '') + m.date;
+  }
+
   App.on('ready', function () {
-    $('#ambient').innerHTML = '<div class="amb-stage"></div><div class="amb-scrim"></div><div class="amb-info"></div>';
+    $('#ambient').innerHTML = '<div class="amb-stage"></div><div class="amb-scrim"></div><div class="amb-cap"></div><div class="amb-info"></div>';
     $('#night').innerHTML = '<div class="nt-inner"></div>';
-    amb.show = new App.Slideshow($('#ambient .amb-stage'), { layout: 'cover', captions: false, interval: 14000 });
+    amb.show = new App.Slideshow($('#ambient .amb-stage'), { layout: 'cover', captions: false, interval: 14000, onChange: showCaption });
+    // The rail's Slideshow button: start the full-screen photo show now; a tap anywhere leaves it.
+    $('#rail').addEventListener('click', function (e) { if (e.target.closest('[data-slideshow]')) App.setMode('ambient'); });
     $('#ambient').addEventListener('click', function () { App.setMode('day'); App.go('home'); });
     $('#night').addEventListener('click', function () { App.setMode('day'); App.go('home'); });
   });

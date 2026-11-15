@@ -11,13 +11,20 @@
     b.querySelector('span').textContent = on ? 'Favourite' : 'Favourite';
   }
 
+  // The home tile leaves the photo that was on screen in App.pendingPhoto; show that one, not a random one.
+  function begin() {
+    var id = App.pendingPhoto;
+    App.pendingPhoto = null;
+    if (!(id && V.show.showPhoto(id))) V.show.start();
+  }
+
   App.register('photos', {
     show: function (el) {
       if (!V.el) {
         V.el = el;
         el.innerHTML = '<div class="photos">' +
           '<div class="ph-stage"></div>' +
-          '<div class="ph-empty serif" hidden>No photos yet.<br><i>Copy photos into the server’s incoming folder and run the importer.</i></div>' +
+          '<div class="ph-empty" hidden>No photos yet.<br>Copy photos into the server’s incoming folder and run the importer.</div>' +
           '<button class="ph-zone ph-zone--l" data-prev aria-label="Previous"></button>' +
           '<button class="ph-zone ph-zone--c" data-loud aria-label="Show details"></button>' +
           '<button class="ph-zone ph-zone--r" data-next aria-label="Next"></button>' +
@@ -52,9 +59,9 @@
         });
       }
       el.querySelector('.ph-empty').hidden = !!window.DATA.photos.length;
-      V.show.start();
+      begin();
     },
-    resume: function () { V.el.querySelector('.ph-empty').hidden = !!window.DATA.photos.length; V.show.start(); },
+    resume: function () { V.el.querySelector('.ph-empty').hidden = !!window.DATA.photos.length; begin(); },
     hide: function () { if (V.show) V.show.stop(); }
   });
 })();

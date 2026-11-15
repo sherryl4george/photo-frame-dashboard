@@ -1,0 +1,48 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Font comparison</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@62..125,100..900&family=Bricolage+Grotesque:opsz,wdth,wght@12..96,75..100,200..800&family=DM+Sans:opsz,wght@9..40,100..1000&family=Fraunces:opsz,wght@9..144,100..900&family=Plus+Jakarta+Sans:wght@200..800&family=Space+Grotesk:wght@300..700&family=Manrope:wght@200..800&family=Oswald:wght@200..700&display=swap">
+<style>
+  body { margin: 0; background: #151412; color: #eee; font-family: system-ui, sans-serif; padding: 24px; }
+  h1 { font-size: 20px; margin: 0 0 4px } p.note { margin: 0 0 24px; opacity: .65; font-size: 14px }
+  .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(620px, 1fr)); gap: 28px; }
+  .label { font-size: 15px; margin: 0 0 8px; opacity: .85 } .label b { font-size: 17px }
+  /* A 1920x1080 slideshow screen, shown at 1/3 size */
+  .box { width: 640px; height: 360px; position: relative; overflow: hidden; border-radius: 6px; }
+  .scr { width: 1920px; height: 1080px; transform: scale(.3333); transform-origin: 0 0; position: absolute; top: 0; left: 0; color: #fff;
+    background: radial-gradient(120% 90% at 70% 20%, #6aa6e8 0%, #3c6f9f 35%, #24415c 65%, #10202e 100%); }
+  .scr::before { content: ''; position: absolute; inset: 0; background: linear-gradient(180deg, rgba(0,0,0,.5), rgba(0,0,0,0) 22%, rgba(0,0,0,0) 45%, rgba(0,0,0,.75)); }
+  .cap { position: absolute; top: 36px; left: 60px; font-size: 20px; font-weight: 600; letter-spacing: .02em }
+  .clock { position: absolute; left: 60px; bottom: 48px }
+  .time { font-size: 230px; line-height: .78; letter-spacing: -.04em }
+  .date { font-size: 34px; font-weight: 600; margin-top: 16px }
+  .wx { position: absolute; right: 60px; bottom: 48px; display: flex; align-items: center; gap: 12px }
+  .temp { font-size: 72px; line-height: .8 }
+  .wxm { display: flex; flex-direction: column; gap: 4px } .wxm b { font-size: 22px; font-weight: 800; letter-spacing: .02em } .wxm span { font-size: 18px; opacity: .85 }
+  .ico { width: 44px; height: 44px; border: 3px solid #fff; border-radius: 50%; opacity: .9 }
+  /* one font for text, one for numbers */
+  .a .t { font-family: 'Archivo', sans-serif } .a .n { font-family: 'Archivo', sans-serif; font-stretch: 62%; font-weight: 800; font-variant-numeric: tabular-nums }
+  .b .t { font-family: 'Bricolage Grotesque', sans-serif } .b .n { font-family: 'Bricolage Grotesque', sans-serif; font-stretch: 75%; font-weight: 800; font-variant-numeric: tabular-nums }
+  .c .t { font-family: 'DM Sans', sans-serif } .c .n { font-family: 'Fraunces', serif; font-weight: 600; font-variant-numeric: lining-nums tabular-nums }
+  .d .t { font-family: 'Plus Jakarta Sans', sans-serif } .d .n { font-family: 'Space Grotesk', sans-serif; font-weight: 600; font-variant-numeric: tabular-nums }
+  .e .t { font-family: 'Manrope', sans-serif } .e .n { font-family: 'Oswald', sans-serif; font-weight: 500; font-variant-numeric: tabular-nums }
+</style></head><body>
+<h1>Font comparison</h1>
+<p class="note">Each card is a 1920x1080 slideshow screen at one third size. Text font + number font. Open this on the frame too: <b>http://<server-ip>:8080/fonts.html</b></p>
+<div class="grid" id="g"></div>
+<script>
+var sets = [
+  ['a', 'A · Current', 'Archivo + Archivo Condensed'],
+  ['b', 'B · Bricolage Grotesque', 'one expressive family, condensed for numbers'],
+  ['c', 'C · DM Sans + Fraunces', 'clean text, soft editorial serif numbers'],
+  ['d', 'D · Plus Jakarta Sans + Space Grotesk', 'rounded text, techy numbers'],
+  ['e', 'E · Manrope + Oswald', 'modern text, tall condensed numbers']
+];
+document.getElementById('g').innerHTML = sets.map(function (s) {
+  return '<div><div class="label"><b>' + s[1] + '</b> · ' + s[2] + '</div><div class="box"><div class="scr ' + s[0] + '">' +
+    '<div class="cap t">Crocker, WA · September 30, 2023</div>' +
+    '<div class="clock"><div class="time n">2:41</div><div class="date t">Sunday, November 15</div></div>' +
+    '<div class="wx"><div class="ico"></div><span class="temp n">50°</span><div class="wxm"><b class="t">Overcast</b><span class="t">H <span class="n">56°</span> · L <span class="n">44°</span> · Feels <span class="n">45°</span></span></div></div>' +
+  '</div></div></div>';
+}).join('');
+</script></body></html>
