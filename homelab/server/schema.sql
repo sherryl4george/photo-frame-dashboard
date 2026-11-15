@@ -13,7 +13,11 @@ CREATE TABLE IF NOT EXISTS photos (
   lon REAL,
   place_from TEXT,                -- 'gps', 'neighbour' or ''
   src_hash TEXT UNIQUE,           -- SHA-256 of the original, so a re-run skips what it has
-  src_name TEXT
+  src_name TEXT,
+  proc_ver INTEGER NOT NULL DEFAULT 0 -- importer pipeline version that made the copies; older ones are redone
+);
+CREATE TABLE IF NOT EXISTS src_files (  -- remembers hashes so a 5-minute run doesn't re-read every original
+  path TEXT PRIMARY KEY, size INTEGER NOT NULL, mtime_ns INTEGER NOT NULL, hash TEXT NOT NULL
 );
 CREATE INDEX IF NOT EXISTS photos_date ON photos (date);
 
