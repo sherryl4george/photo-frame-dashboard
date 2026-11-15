@@ -14,7 +14,7 @@ Safe to run every few minutes: originals are identified by SHA-256 and cached by
 
   python3 importer.py --incoming /opt/photoframe/incoming --data /opt/photoframe/data --mirror
 """
-import argparse, calendar, fcntl, hashlib, io, os, re, sqlite3, sys, time
+import argparse, calendar, fcntl, hashlib, io, os, re, shutil, sqlite3, sys, time, zipfile
 from datetime import datetime
 
 from PIL import Image, ImageCms, ImageEnhance, ImageFilter, ImageOps
@@ -125,6 +125,85 @@ def load_upright(path):
     return im, icc, meta
 
 
+def ingest_drop(drop, album, staging_root, quiet_s, dry):
+    """Turn album zips dropped in `drop` into the contents of `album` (one folder = one snapshot).
+
+    Google Photos "Download all" gives a full copy of the album, so the zips found together are treated as
+    the whole album: new photos are added, changed ones replaced, and photos missing from the zips are
+    removed from `album`. Safety: waits until nothing in `drop` has changed for quiet_s seconds (an upload
+    or a multi-part download may still be arriving), refuses a bad or empty zip, extracts only image files by
+    base name (nothing can land outside the staging folder), and moves handled zips to drop/done/
+    (kept 14 days). The importer's own mirror guard then protects against a snapshot that lost most photos.
+    Returns the number of zips handled."""
+    if not os.path.isdir(drop):
+        return 0
+    entries = [f for f in os.listdir(drop) if os.path.isfile(os.path.join(drop, f)) and not f.startswith(".")]
+    zips = sorted(f for f in entries if f.lower().endswith(".zip"))
+    if not zips:
+        return 0
+    newest = max(os.path.getmtime(os.path.join(drop, f)) for f in entries)
+    if time.time() - newest < quiet_s:
+        print("drop: waiting for uploads to settle (%d more seconds)" % (quiet_s - (time.time() - newest)))
+        return 0
+    stage = os.path.join(staging_root, "drop-%d" % time.time())
+    os.makedirs(stage)
+    total = count = 0
+    try:
+        for z in zips:
+            zp = os.path.join(drop, z)
+            if not zipfile.is_zipfile(zp):
+                raise RuntimeError("%s is not a valid zip" % z)
+            with zipfile.ZipFile(zp) as zf:
+                bad = zf.testzip()
+                if bad:
+                    raise RuntimeError("%s is damaged (%s)" % (z, bad))
+                for info in zf.infolist():
+                    name = os.path.basename(info.filename)
+                    if info.is_dir() or not name or name.startswith(".") or os.path.splitext(name)[1].lower() not in EXTS:
+                        continue
+                    total += info.file_size
+                    if info.file_size > 200 << 20 or total > 30 << 30:
+                        raise RuntimeError("%s: file or total size looks wrong" % z)
+                    dest, n = os.path.join(stage, name), 1
+                    while os.path.exists(dest):
+                        n += 1
+                        dest = os.path.join(stage, "%s-%d%s" % (os.path.splitext(name)[0], n, os.path.splitext(name)[1]))
+                    with zf.open(info) as src, open(dest, "wb") as out:
+                        shutil.copyfileobj(src, out, 1 << 20)
+                    count += 1
+        if not count:
+            raise RuntimeError("no photos found in the zip file(s)")
+        os.makedirs(album, exist_ok=True)
+        cur = {f: os.path.getsize(os.path.join(album, f)) for f in os.listdir(album) if os.path.isfile(os.path.join(album, f))}
+        new = {f: os.path.getsize(os.path.join(stage, f)) for f in os.listdir(stage)}
+        put = [f for f in new if cur.get(f) != new[f]]
+        gone = [f for f in cur if f not in new]
+        print("drop: %d zip(s), %d photos; album folder: %d new or changed, %d removed, %d unchanged" % (len(zips), count, len(put), len(gone), len(new) - len(put)))
+        if dry:
+            return len(zips)
+        for f in put:
+            os.replace(os.path.join(stage, f), os.path.join(album, f))
+        for f in gone:
+            os.remove(os.path.join(album, f))
+        done = os.path.join(drop, "done")
+        os.makedirs(done, exist_ok=True)
+        for z in zips:
+            tgt = os.path.join(done, z)
+            if os.path.exists(tgt):
+                tgt += ".%d" % time.time()
+            os.replace(os.path.join(drop, z), tgt)
+        for f in os.listdir(done):
+            fp = os.path.join(done, f)
+            if time.time() - os.path.getmtime(fp) > 14 * 86400:
+                os.remove(fp)
+        return len(zips)
+    except Exception as e:
+        print("drop: %s; nothing was changed, the zip file(s) stay in %s" % (e, drop), file=sys.stderr)
+        return 0
+    finally:
+        shutil.rmtree(stage, ignore_errors=True)
+
+
 def scan(db, folder):
     """{hash: path} for every image in folder; hashes are cached by size+mtime."""
     found = {}
@@ -154,6 +233,8 @@ def main():
     ap.add_argument("--incoming", required=True)
     ap.add_argument("--data", required=True, help="folder holding photoframe.db and photos/")
     ap.add_argument("--geo", help="GeoNames folder (default: <data>/geonames)")
+    ap.add_argument("--drop", help="folder where album zips are dropped; their photos become <incoming>/album/")
+    ap.add_argument("--quiet-seconds", type=int, default=300, help="wait this long after the last change in --drop before reading zips")
     ap.add_argument("--no-geo", action="store_true", help="skip place names")
     ap.add_argument("--mirror", action="store_true", help="remove library photos whose original left the folder")
     ap.add_argument("--force-mirror", action="store_true", help="allow --mirror to remove more than half the library")
@@ -176,19 +257,22 @@ def main():
     cols = {r[1] for r in db.execute("PRAGMA table_info(photos)")}
     if "proc_ver" not in cols:
         db.execute("ALTER TABLE photos ADD COLUMN proc_ver INTEGER NOT NULL DEFAULT 0")
-    for d in ("full", "small", "bg"):
+    for d in ("full", "small", "bg", "../staging"):
         os.makedirs(os.path.join(a.data, "photos", d), exist_ok=True)
     if a.reprocess_all and not a.dry_run:
         db.execute("UPDATE photos SET proc_ver = 0")
         db.commit()
 
+    if a.drop:
+        ingest_drop(a.drop, os.path.join(a.incoming, "album"), os.path.join(a.data, "staging"), a.quiet_seconds, a.dry_run)
     sources = scan(db, a.incoming)
     rows = {r[0]: (r[1], r[2]) for r in db.execute("SELECT src_hash, id, proc_ver FROM photos")}
-    todo_new = [(h, p) for h, p in sorted(sources.items(), key=lambda kv: kv[1]) if h not in rows]
+    bad = {r[0] for r in db.execute("SELECT hash FROM src_bad")}
+    todo_new = [(h, p) for h, p in sorted(sources.items(), key=lambda kv: kv[1]) if h not in rows and h not in bad]
     todo_redo = [(h, sources[h]) for h, (pid, v) in rows.items() if h in sources and v < PROC_VERSION]
     stale = [(h, pid) for h, (pid, v) in rows.items() if h not in sources]
     places = None
-    added = redone = failed = removed = 0
+    added = redone = failed = removed = unreadable = 0
 
     for h, path in todo_new:
         try:
@@ -209,9 +293,12 @@ def main():
                             None if lat is None else round(lat, 2), None if lon is None else round(lon, 2), pf, h, os.path.basename(path), PROC_VERSION))
                 db.commit()
             added += 1
-        except Exception as e:  # one bad file must not stop the batch
-            failed += 1
-            print("FAILED %s: %s" % (os.path.basename(path), e), file=sys.stderr)
+        except Exception as e:  # one bad file must not stop the batch; remember it so it isn't retried every run
+            unreadable += 1
+            print("skip %s: not a readable image (%s)" % (os.path.basename(path), e), file=sys.stderr)
+            if not a.dry_run:
+                db.execute("INSERT OR REPLACE INTO src_bad (hash,name,error) VALUES (?,?,?)", (h, os.path.basename(path), str(e)[:200]))
+                db.commit()
 
     for h, path in todo_redo:
         try:
@@ -252,9 +339,9 @@ def main():
                 db.execute("UPDATE photos SET place=?, place_from='neighbour' WHERE id=?", (best[1], pid))
                 borrowed += 1
         db.commit()
-    if added or redone or removed or failed or borrowed:
-        print("added %d, redone %d, removed %d, failed %d, place borrowed %d, library now %d%s" % (
-            added, redone, removed, failed, borrowed, db.execute("SELECT count(*) FROM photos").fetchone()[0], " (dry run)" if a.dry_run else ""))
+    if added or redone or removed or failed or borrowed or unreadable:
+        print("added %d, redone %d, removed %d, failed %d, unreadable %d, place borrowed %d, library now %d%s" % (
+            added, redone, removed, failed, unreadable, borrowed, db.execute("SELECT count(*) FROM photos").fetchone()[0], " (dry run)" if a.dry_run else ""))
     return 1 if failed else 0
 
 

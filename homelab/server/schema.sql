@@ -33,3 +33,7 @@ CREATE TABLE IF NOT EXISTS notes (
 CREATE TABLE IF NOT EXISTS cache (
   key TEXT PRIMARY KEY, value TEXT NOT NULL, expires INTEGER NOT NULL
 );
+
+CREATE TABLE IF NOT EXISTS src_bad (   -- originals that could not be read as images; skipped until they change
+  hash TEXT PRIMARY KEY, name TEXT, error TEXT
+);

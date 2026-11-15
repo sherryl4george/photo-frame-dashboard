@@ -5,8 +5,8 @@ No Docker, no npm packages on the server. Front end: a trimmed copy of
 [sambartle/photo-frame-dashboard](https://github.com/sambartle/photo-frame-dashboard) (see [NOTICE.md](NOTICE.md)).
 
 ```
-laptop ── push-photos.py ──▶  server:/opt/photoframe/incoming/      (your originals)
-                                   │  importer.py --mirror, every 5 minutes (systemd timer)
+Google Photos zip ── scp ──▶ server:/opt/photoframe/drop/  ──▶ incoming/album/   (also: push-photos.py ──▶ incoming/)
+                                   │  importer.py --drop --mirror, every 5 minutes (systemd timer)
                                    ▼
                               data/photoframe.db + data/photos/{full,small,bg}/
                                    │
@@ -21,21 +21,40 @@ frame (Home HQ kiosk) ◀── http://<server>:8080/?key=… ── server/serv
 | `server/geo.py` | Offline "approximate place" from GPS, using GeoNames `cities1000` (CC BY 4.0, https://www.geonames.org). |
 | `push-photos.py` | Copies a folder on your computer to the server's `incoming/`. No rsync needed. |
 
-## Adding and changing photos
+## Updating photos from Google Photos (the usual way)
+
+1. In Google Photos, open your album and choose **Download all**. You get one or more zip files.
+2. Copy the zip(s) to the server's `drop/` folder:
+
+   ```sh
+   scp ~/Downloads/Frameo-*.zip <user>@<server>:/opt/photoframe/drop/
+   ```
+
+3. Wait about 5 to 10 minutes. The server waits until nothing in `drop/` has changed for 5 minutes (so a copy still
+   in progress, or a multi-part download, is never read half-way), then unpacks the zip(s) into `incoming/album/`,
+   moves them to `drop/done/` (kept 14 days) and imports the photos. The frame shows them on its next poll.
+
+**Each download is a full snapshot of the album.** New photos are added; photos you removed from the album are
+removed from the frame (the importer's mirror mode); photos already imported are left alone (identified by SHA-256,
+so re-downloading the same album costs almost nothing). Put every part of a multi-part download in `drop/` together.
+A damaged zip, or one with no photos, changes nothing and stays in `drop/` (the reason is in the journal).
+Only image files are used, by base name, so nothing in a zip can write outside the server's own folders.
+
+## Other ways to add photos
 
 ```sh
-./push-photos.py ~/Pictures/frame             # add new or changed photos
+./push-photos.py ~/Pictures/frame             # add new or changed photos from a folder on this computer
 ./push-photos.py ~/Pictures/frame --delete    # also remove ones you deleted locally
 ./push-photos.py ~/Pictures/frame --dry-run   # see what it would do
 ```
 
-Within about 5 minutes the importer picks them up and the frame shows them on its next poll (30 s).
-`--delete` only changes the server's drop folder; the importer's `--mirror` then removes the matching
-library copies. Mirror refuses to run when the folder is empty or when it would remove more than half the
-library (so an unmounted or wrong folder can't wipe it). To replace most of the set on purpose, run once by hand:
+This goes to `incoming/` (not `incoming/album/`), so it is a separate set from the album: mirroring
+removes a photo only when it is in neither place. Mirror refuses to run when there are no source photos or when it would
+remove more than half the library (so a wrong or half-copied snapshot can't wipe it). To replace most of the set on
+purpose, run once by hand:
 
 ```sh
-ssh <user>@<server> 'python3 -I /opt/photoframe/server/importer.py --incoming /opt/photoframe/incoming --data /opt/photoframe/data --mirror --force-mirror'
+ssh <user>@<server> 'python3 -I /opt/photoframe/server/importer.py --incoming /opt/photoframe/incoming --data /opt/photoframe/data --drop /opt/photoframe/drop --mirror --force-mirror'
 ```
 
 Per photo the importer: rotates upright, **converts the embedded colour profile to sRGB** (phones tag
