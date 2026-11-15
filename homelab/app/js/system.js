@@ -188,43 +188,86 @@
     });
   };
 
-  // ------------------------------------------------------------ display controls drawer
+  // ------------------------------------------------------------ settings page
+  // A full-screen page: sections on the left, plain rows on the right (label + hint + one control).
+  // Everything is kept per frame in localStorage, except the things the server knows (frames, status).
+  var SEC = 'slideshow';
+  var STYLE_HINT = { auto: 'A mix of layouts', cover: 'One photo, full screen', pair: 'Two portraits side by side',
+    collage: 'Three photos at once', polaroid: 'A framed print on a soft backdrop' };
+  function sections() {
+    var list = [['slideshow', 'Slideshow'], ['screen', 'Screen']];
+    if (D.hasHome || (D.bins && D.bins.next && D.bins.next.length)) list.push(['sound', 'Sound']);
+    list.push(['about', 'About']);
+    return list;
+  }
+  function row(label, hint, ctl) {
+    return '<div class="set-row"><div class="set-txt"><b>' + label + '</b>' + (hint ? '<span>' + hint + '</span>' : '') + '</div><div class="set-ctl">' + ctl + '</div></div>';
+  }
+  function sw(attrs, on, label) {
+    return '<button class="set-switch' + (on ? ' is-on' : '') + '" role="switch" aria-checked="' + !!on + '" aria-label="' + label + '" ' + attrs + '><i></i></button>';
+  }
+  function secs(v) { return v % 60 === 0 && v >= 60 ? [v / 60, 'min'] : [v, 'sec']; }
+  function stepper(attrs, v) {
+    var t = secs(v);
+    return '<div class="set-step"><button ' + attrs + ' data-d="-1" aria-label="Less">−</button><span class="set-stepv"><span class="num">' + t[0] + '</span><em>' + t[1] + '</em></span><button ' + attrs + ' data-d="1" aria-label="More">+</button></div>';
+  }
+  function timeRow(label, hint, key, val) {
+    return '<label class="set-row set-time"><div class="set-txt"><b>' + label + '</b>' + (hint ? '<span>' + hint + '</span>' : '') + '</div>' +
+      '<div class="set-ctl"><span class="set-val">' + App.nightLabel(val) + '</span><span class="set-chev">›</span></div>' +
+      '<input type="time" data-night="' + key + '" value="' + val + '" aria-label="' + label + '"></label>';
+  }
+  function list(rows) { return '<div class="set-list">' + rows.join('') + '</div>'; }
+  function page(title, action, body) { return '<div class="set-head"><h2 class="set-h">' + title + '</h2>' + (action || '') + '</div>' + body; }
+
+  function slideshowPage() {
+    var S = App.slideshow;
+    var seg = '<div class="seg set-seg">' + App.SLIDE_LAYOUTS.map(function (l) {
+      return '<button data-ss="layout" data-v="' + l + '" class="' + (S.layout === l ? 'is-on' : '') + '">' + l + '</button>';
+    }).join('') + '</div>';
+    return page('Slideshow', '<button class="set-btn" data-start="ambient">Start now</button>', list([
+      '<div class="set-row set-row--col"><div class="set-txt"><b>Photo style</b><span>' + STYLE_HINT[S.layout] + '</span></div>' + seg + '</div>',
+      row('Time per photo', '', stepper('data-sstep="interval"', S.interval)),
+      row('Show photo details', '', sw('data-ssflag="details"', S.details, 'Show photo details')),
+      row('Show weather', '', sw('data-ssflag="weather"', S.weather, 'Show weather'))
+    ]));
+  }
+  function screenPage() {
+    var N = App.night;
+    var rows = [
+      timeRow('Dim from', 'The slideshow becomes a dim clock', 'from', N.from),
+      timeRow('Back to normal at', '', 'to', N.to),
+      row('Screen off at night', '', sw('data-nightoff', N.offOn, 'Screen off at night'))
+    ];
+    if (N.offOn) rows.push(timeRow('Off from', '', 'offFrom', N.offFrom), timeRow('On again at', '', 'offTo', N.offTo));
+    return page('Screen', '<button class="set-btn set-btn--ghost" data-start="off">Screen off now</button>', list(rows));
+  }
+  function soundPage() {
+    var v = Math.round(App.soundSettings.volume * 100);
+    return page('Sound', '', list([row('Chimes', 'Quiet at night; smoke, CO and leak alarms always sound', sw('data-mute', !App.soundSettings.muted, 'Chimes')),
+      row('Volume', '', '<input type="range" min="0" max="100" step="5" value="' + v + '" data-volume aria-label="Volume"><span class="set-val demo-vol num">' + v + '%</span>')]));
+  }
+  function aboutPage() {
+    var I = App.idle, t = tests();
+    return page('About', '<button class="set-btn set-btn--ghost" data-reload>Refresh data</button>', list([
+      row('Status', '', '<span class="set-text">' + status() + '</span>'),
+      row('Version', '', '<span class="set-val">' + __APP_VERSION__ + '</span>'),
+      '<div class="set-row set-row--col"><div class="set-txt"><b>Frames</b></div><div class="demo-frames" id="demoFrames"><p class="set-note">Checking…</p></div></div>'
+    ]) + '<h3 class="set-g">Advanced</h3>' + list([
+      row('Start the slideshow after', '', stepper('data-istep="rest"', I.rest)),
+      row('Back to Today after', '', stepper('data-istep="home"', I.home)),
+      row('Night clock after a touch', '', stepper('data-istep="peek"', I.peek)),
+      row('Preview an alert', '', '<select id="demoAlert" class="set-select" aria-label="Alert to test">' +
+        t.map(function (x) { return '<option value="' + x[0] + '">' + x[1] + '</option>'; }).join('') + '</select><button class="set-btn" data-test>Show</button>')
+    ]) + '<div class="set-list" id="demoAdb"></div>');
+  }
   function demoHTML() {
-    return '<div class="demo-panel">' +
-      '<div class="demo-head"><div><div class="label label--light">Home HQ</div><h2 class="serif">Display controls</h2></div><button class="demo-x" data-demo-close>' + App.icon('x', 28) + '</button></div>' +
-      '<div class="demo-sec"><div class="label label--light">Modes</div><div class="demo-test">' +
-      '<select id="demoMode" aria-label="Mode to show"><option value="ambient">Ambient</option><option value="off">Screen off</option></select>' +
-      '<button data-modego>Show</button>' +
-      '<button class="demo-icon" data-reload aria-label="Refresh data">' + App.icon('refresh', 26) + '</button></div></div>' +
-      (tests().length ? '<div class="demo-sec"><div class="label label--light">Test alerts (nothing is sent to the house)</div><div class="demo-test">' +
-      '<select id="demoAlert" aria-label="Alert to test">' + tests().map(function (t) { return '<option value="' + t[0] + '">' + t[1] + '</option>'; }).join('') + '</select>' +
-      '<button data-test>Show</button></div></div>' : '') +
-      '<div class="demo-sec"><div class="label label--light">Sound on this frame</div><div class="demo-sound">' +
-      '<button data-mute class="' + (App.soundSettings.muted ? '' : 'is-on') + '">' + (App.soundSettings.muted ? 'Chimes off' : 'Chimes on') + '</button>' +
-      '<input type="range" min="0" max="100" step="5" value="' + Math.round(App.soundSettings.volume * 100) + '" data-volume aria-label="Volume">' +
-      '<span class="demo-vol num">' + Math.round(App.soundSettings.volume * 100) + '%</span></div>' +
-      '<p class="demo-note">Doorbell, leave now and bins chimes; quiet at night and while everyone’s away. Smoke, CO and leak alarms always sound.</p></div>' +
-      '<div class="demo-sec"><div class="label label--light">Night mode</div>' +
-      '<div class="demo-night">' +
-      '<label>Dim <input type="time" data-night="from" value="' + App.night.from + '" aria-label="Dim from"></label>' +
-      '<label>Bright <input type="time" data-night="to" value="' + App.night.to + '" aria-label="Bright from"></label></div>' +
-      '<div class="demo-night">' +
-      '<label>Sleep <input type="time" data-night="offFrom" value="' + App.night.offFrom + '" aria-label="Screen off from"></label>' +
-      '<label>Wake <input type="time" data-night="offTo" value="' + App.night.offTo + '" aria-label="Screen on from"></label>' +
-      '<button data-nightoff class="' + (App.night.offOn ? 'is-on' : '') + '" aria-label="Screen off at night">' + (App.night.offOn ? 'On' : 'Off') + '</button></div></div>' +
-      '<div class="demo-sec"><div class="label label--light">Timeouts (seconds)</div>' +
-      '<div class="demo-night">' +
-      '<label>Today <input type="number" inputmode="numeric" min="5" max="3600" step="5" data-idle="home" value="' + App.idle.home + '" aria-label="Seconds before returning to Today"></label>' +
-      '<label>Rest <input type="number" inputmode="numeric" min="5" max="3600" step="5" data-idle="rest" value="' + App.idle.rest + '" aria-label="Seconds before the photo screen"></label></div>' +
-      '<div class="demo-night">' +
-      '<label>Peek <input type="number" inputmode="numeric" min="5" max="3600" step="5" data-idle="peek" value="' + App.idle.peek + '" aria-label="Seconds before the night clock"></label>' +
-      '<span class="demo-spacer"></span></div></div>' +
-      '<div class="demo-sec" id="demoAdb"></div>' +
-      '<div class="demo-sec"><div class="label label--light">Frames</div><div class="demo-frames" id="demoFrames"><p class="demo-note">Checking…</p></div></div>' +
-      '<div class="demo-sec"><div class="label label--light">Status</div><p class="demo-note">' + status() + '</p>' +
-      '<p class="demo-note">Version ' + __APP_VERSION__ + '</p></div>' +
-      '<p class="demo-note">Keyboard: <b>D</b> controls · <b>A</b> ambient · <b>1–6</b> views</p>' +
-      '</div>';
+    var secsList = sections();
+    if (!secsList.some(function (x) { return x[0] === SEC; })) SEC = 'slideshow';
+    var body = { slideshow: slideshowPage, screen: screenPage, sound: soundPage, about: aboutPage }[SEC]();
+    return '<div class="set">' +
+      '<nav class="set-nav"><h1>Settings</h1>' + secsList.map(function (x) { return '<button data-sec="' + x[0] + '" class="' + (SEC === x[0] ? 'is-on' : '') + '">' + x[1] + '</button>'; }).join('') +
+      '<button class="set-done" data-demo-close>Done</button></nav>' +
+      '<main class="set-main">' + body + '</main></div>';
   }
   // [id, label]: Home Assistant alerts only when it's set up; weather and bins work without it.
   function tests() {
@@ -273,19 +316,16 @@
     var key = [on, k.adbFrom, k.adbIp, k.adbError].join('|');
     if (el.getAttribute('data-k') === key) { var c = el.querySelector('.demo-vol'); if (c) c.textContent = clock; return; }
     el.setAttribute('data-k', key);
-    var from = k.adbFrom, err = k.adbError ? '<p class="demo-note" style="color:#FF8A80">' + App.esc(k.adbError) + '</p>' : '';
+    var from = k.adbFrom, err = k.adbError ? '<p class="set-note set-err">' + App.esc(k.adbError) + '</p>' : '';
     if (!from) {
       // The kiosk won't start it without a subnet saved, so there's nothing to press.
-      el.innerHTML = '<div class="label label--light">Wireless ADB</div>' +
-        '<p class="demo-note">Needs a subnet saved first, over USB: <b>adb shell am start -n com.wesbos.homehq/.MainActivity --es adbfrom &lt;your computer’s subnet&gt;</b></p>' + err;
+      el.innerHTML = '<div class="set-row set-row--col"><div class="set-txt"><b>Wireless ADB</b><span>Needs a subnet saved first, over USB: <code>adb shell am start -n com.wesbos.homehq/.MainActivity --es adbfrom &lt;your computer’s subnet&gt;</code></span></div></div>' + err;
       return;
     }
-    el.innerHTML = '<div class="label label--light">Wireless ADB</div>' +
-      '<div class="demo-sound"><button data-adb class="' + (on ? 'is-on' : '') + '">' + (on ? 'Turn off' : 'Turn on for 5 min') + '</button>' +
-      '<span class="demo-vol num">' + clock + '</span></div>' +
-      '<p class="demo-note">' + (on
+    el.innerHTML = '<div class="set-row"><div class="set-txt"><b>Wireless ADB</b><span>' + (on
         ? 'adb connect ' + App.esc(k.adbIp || '<this frame’s address>') + ':5555 · ' + (from === 'any' ? '<b>open to this whole Wi-Fi</b>' : 'only from ' + App.esc(from))
-        : 'For deploying an update over Wi-Fi. Switches itself off after 5 minutes. ' + (from === 'any' ? 'No address lock: anyone on this Wi-Fi could connect while it’s on.' : 'Only ' + App.esc(from) + ' can connect.')) + '</p>' + err;
+        : 'For deploying an update over Wi-Fi. Switches itself off after 5 minutes. ' + (from === 'any' ? 'No address lock: anyone on this Wi-Fi could connect while it’s on.' : 'Only ' + App.esc(from) + ' can connect.')) + '</span></div>' +
+      '<div class="set-ctl"><span class="set-val demo-vol num">' + clock + '</span><button class="set-btn' + (on ? '' : ' set-btn--ghost') + '" data-adb>' + (on ? 'Turn off' : 'Turn on for 5 min') + '</button></div></div>' + err;
   }
   App.openDemo = function () {
     var el = $('#demo');
@@ -311,12 +351,23 @@
       }
       return;
     }
-    if (b.hasAttribute('data-modego')) {
+    if (b.dataset.sec) { SEC = b.dataset.sec; App.openDemo(); return; }
+    if (b.dataset.ss) { App.setSlideshow({ [b.dataset.ss]: b.dataset.v }); App.openDemo(); return; }
+    if (b.dataset.ssflag) { var k = b.dataset.ssflag, q = {}; q[k] = !App.slideshow[k]; App.setSlideshow(q); App.openDemo(); return; }
+    if (b.dataset.sstep) { App.setSlideshow({ interval: Math.max(5, Math.min(120, App.slideshow.interval + (+b.dataset.d) * 5)) }); App.openDemo(); return; }
+    if (b.dataset.istep) {
+      var ik = b.dataset.istep, iq = {};
+      iq[ik] = Math.max(15, Math.min(3600, App.idle[ik] + (+b.dataset.d) * 15));
+      App.setIdle(iq);
+      App.openDemo();
+      return;
+    }
+    if (b.dataset.start) {
       closeDemo();
-      // Ambient = rest now, skipping the timeout: the clock still picks the screen (photos, dim
-      // clock or screen off) and keeps switching at Dim, Bright, Sleep and Wake. Screen off is a
-      // manual pick: as dark as the panel goes, and it stays until someone taps.
-      if ($('#demoMode').value === 'off') App.setMode('off', true); else App.rest();
+      // The slideshow = rest now, skipping the timeout: the clock still picks the screen (photos, dim
+      // clock or screen off) and keeps switching at Dim, Bright, Sleep and Wake. Screen off is a manual
+      // pick: as dark as the panel goes, and it stays until someone taps.
+      if (b.dataset.start === 'off') App.setMode('off', true); else App.rest();
       return;
     }
     if (b.hasAttribute('data-mute')) {
@@ -355,7 +406,7 @@
     $('#demo').addEventListener('click', demoClick);
     // Time pickers: a tap anywhere on the box opens the picker, not just on its little icon.
     $('#demo').addEventListener('click', function (e) {
-      var l = e.target.closest('.demo-night label'), i = l && l.querySelector('input');
+      var l = e.target.closest('.set-time'), i = l && l.querySelector('input');
       if (!i) return;
       e.preventDefault();
       if (i.showPicker) { try { i.showPicker(); return; } catch (err) {} } // throws if one is already open
@@ -382,6 +433,7 @@
       }
     });
     App.hold($('#railClock'), 700, { done: App.openDemo });
+    $('#rail').addEventListener('click', function (e) { if (e.target.closest('[data-settings]')) App.openDemo(); });
     document.addEventListener('keydown', function (e) {
       if (e.target.tagName === 'INPUT') return;
       var k = e.key.toLowerCase();

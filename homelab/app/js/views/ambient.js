@@ -52,10 +52,26 @@
     el.innerHTML = (m.onThisDay ? '<b>On this day</b> · ' : '') + (m.place ? App.esc(m.place) + ' · ' : '') + m.date;
   }
 
+  // Apply the slideshow settings (Settings > Slideshow): style, seconds per photo, details and weather.
+  function applySlideshow() {
+    var S = App.slideshow, box = $('#ambient');
+    if (!box) return;
+    box.classList.toggle('no-details', !S.details);
+    box.classList.toggle('no-weather', !S.weather);
+    if (!amb.show) return;
+    amb.show.o.interval = S.interval * 1000;
+    if (amb.show.timer) amb.show.restart();
+    if (amb.show.o.layout !== S.layout) {
+      if (App.mode === 'ambient') amb.show.setLayout(S.layout); else amb.show.o.layout = S.layout;
+    }
+  }
+  App.on('slideshow', applySlideshow);
+
   App.on('ready', function () {
     $('#ambient').innerHTML = '<div class="amb-stage"></div><div class="amb-scrim"></div><div class="amb-cap"></div><div class="amb-info"></div>';
     $('#night').innerHTML = '<div class="nt-inner"></div>';
-    amb.show = new App.Slideshow($('#ambient .amb-stage'), { layout: 'cover', captions: false, interval: 14000, onChange: showCaption });
+    amb.show = new App.Slideshow($('#ambient .amb-stage'), { layout: App.slideshow.layout, captions: false, interval: App.slideshow.interval * 1000, onChange: showCaption });
+    applySlideshow();
     // The rail's Slideshow button: start the full-screen photo show now; a tap anywhere leaves it.
     $('#rail').addEventListener('click', function (e) { if (e.target.closest('[data-slideshow]')) App.setMode('ambient'); });
     $('#ambient').addEventListener('click', function () { App.setMode('day'); App.go('home'); });
@@ -64,7 +80,7 @@
 
   App.on('mode', function (m) {
     clearInterval(shiftTimer);
-    if (m === 'ambient') { amb.show.start(); paint(); shiftTimer = setInterval(pixelShift, 60000); }
+    if (m === 'ambient') { amb.show.next(); paint(); shiftTimer = setInterval(pixelShift, 60000); }
     else amb.show.stop();
     if (m === 'night') { paint(); shiftTimer = setInterval(pixelShift, 60000); }
     App.resetIdle();

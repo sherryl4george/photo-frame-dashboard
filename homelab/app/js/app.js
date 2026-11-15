@@ -39,6 +39,29 @@
     App.syncNightMode();
     return true;
   };
+  // Slideshow (the full-screen resting photo screen), per frame: photo style, seconds per photo, and
+  // whether the photo details and the weather are shown. Kept in localStorage as "hq-slideshow".
+  App.SLIDE_LAYOUTS = ['auto', 'cover', 'pair', 'collage', 'polaroid'];
+  App.slideshow = (function () {
+    var v = { layout: 'cover', interval: 14, details: true, weather: true };
+    try {
+      var o = JSON.parse(localStorage.getItem('hq-slideshow')) || {};
+      if (App.SLIDE_LAYOUTS.indexOf(o.layout) > -1) v.layout = o.layout;
+      if (typeof o.interval === 'number' && o.interval >= 5 && o.interval <= 120) v.interval = Math.round(o.interval);
+      if (o.details === false) v.details = false;
+      if (o.weather === false) v.weather = false;
+    } catch (e) {}
+    return v;
+  })();
+  App.setSlideshow = function (patch) {
+    var v = Object.assign({}, App.slideshow, patch);
+    if (App.SLIDE_LAYOUTS.indexOf(v.layout) < 0 || !(v.interval >= 5 && v.interval <= 120)) return false;
+    v.details = !!v.details; v.weather = !!v.weather;
+    App.slideshow = v;
+    try { localStorage.setItem('hq-slideshow', JSON.stringify(v)); } catch (e) {}
+    App.emit('slideshow', v);
+    return true;
+  };
   function mins(t) { return +t.slice(0, 2) * 60 + +t.slice(3); }
   function within(from, to) {
     var d = App.now(), m = d.getHours() * 60 + d.getMinutes(), a = mins(from), b = mins(to);
