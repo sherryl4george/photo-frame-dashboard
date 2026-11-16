@@ -433,7 +433,6 @@
       }
     });
     App.hold($('#railClock'), 700, { done: App.openDemo });
-    $('#rail').addEventListener('click', function (e) { if (e.target.closest('[data-settings]')) App.openDemo(); });
     document.addEventListener('keydown', function (e) {
       if (e.target.tagName === 'INPUT') return;
       var k = e.key.toLowerCase();
