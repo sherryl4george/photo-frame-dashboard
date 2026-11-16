@@ -12,6 +12,8 @@ body {
   touch-action: manipulation;
 }
 button { font: inherit; color: inherit; background: none; border: 0; padding: 0; margin: 0; cursor: pointer; text-align: inherit; }
+/* A long press on a photo must not start the browser's image drag (a ghost thumbnail that holds the touch) or a menu. */
+img { -webkit-user-drag: none; user-drag: none; -webkit-touch-callout: none; pointer-events: none; }
 input { font: inherit; color: inherit; -webkit-user-select: text; user-select: text; }
 img { display: block; }
 h1, h2, h3, p { margin: 0; font-weight: inherit; }

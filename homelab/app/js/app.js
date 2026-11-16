@@ -455,6 +455,9 @@
       var b = e.target.closest('[data-go]');
       if (b && e.detail === 0) App.go(b.dataset.go);
     });
+    // Same reason: no drag or context menu from a long press anywhere.
+    document.addEventListener('dragstart', function (e) { e.preventDefault(); }, true);
+    document.addEventListener('contextmenu', function (e) { e.preventDefault(); }, true);
     document.addEventListener('pointerdown', App.resetIdle, true);
     window.addEventListener('hashchange', function () { App.go(location.hash.slice(1)); });
     App.go(location.hash.slice(1) || 'home');
