@@ -320,7 +320,7 @@ button.card:active, .h-hero:active, .h-photo:active { transform: scale(.985); }
 .set-switch.is-on { background: var(--ink); }
 .set-switch.is-on i { transform: translateX(24px); }
 .set-step { display: flex; align-items: center; gap: 6px; }
-.set-step button { width: 44px; height: 44px; border-radius: 50%; background: var(--paper-2); font-size: 24px; font-weight: 600; line-height: 1; }
+.set-step button { width: 44px; height: 44px; border-radius: 50%; background: var(--paper-2); font-size: 26px; font-weight: 600; line-height: 1; padding: 0; display: flex; align-items: center; justify-content: center; text-align: center; }
 .set-stepv { min-width: 84px; text-align: center; display: flex; align-items: baseline; justify-content: center; gap: 5px; }
 .set-stepv .num { font-size: 28px; line-height: 1; }
 .set-stepv em { font-style: normal; font-size: 14px; color: var(--mute); }
