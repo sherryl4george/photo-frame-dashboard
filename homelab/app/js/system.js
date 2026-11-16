@@ -211,10 +211,26 @@
     var t = secs(v);
     return '<div class="set-step"><button ' + attrs + ' data-d="-1" aria-label="Less">−</button><span class="set-stepv"><span class="num">' + t[0] + '</span><em>' + t[1] + '</em></span><button ' + attrs + ' data-d="1" aria-label="More">+</button></div>';
   }
+  // Our own time editor (Android's built-in picker drops what you type): tap the row, then step the
+  // hour and minute and pick AM or PM. Each change is saved at once.
+  var EDIT = null;
+  function timeParts(v) { var h = +v.slice(0, 2); return { h12: h % 12 || 12, m: +v.slice(3), pm: h >= 12 }; }
   function timeRow(label, hint, key, val) {
-    return '<label class="set-row set-time"><div class="set-txt"><b>' + label + '</b>' + (hint ? '<span>' + hint + '</span>' : '') + '</div>' +
-      '<div class="set-ctl"><span class="set-val">' + App.nightLabel(val) + '</span><span class="set-chev">›</span></div>' +
-      '<input type="time" data-night="' + key + '" value="' + val + '" aria-label="' + label + '"></label>';
+    var t = timeParts(val), open = EDIT === key;
+    var ed = open ? '<div class="set-timed">' +
+      '<div class="set-tg"><button data-tstep="' + key + '" data-part="h" data-d="-1" aria-label="Earlier hour">−</button><span class="num">' + t.h12 + '</span><button data-tstep="' + key + '" data-part="h" data-d="1" aria-label="Later hour">+</button><em>hour</em></div>' +
+      '<div class="set-tg"><button data-tstep="' + key + '" data-part="m" data-d="-1" aria-label="Earlier minute">−</button><span class="num">' + ('0' + t.m).slice(-2) + '</span><button data-tstep="' + key + '" data-part="m" data-d="1" aria-label="Later minute">+</button><em>minute</em></div>' +
+      '<div class="seg set-ap"><button data-tstep="' + key + '" data-part="ap" data-v="am" class="' + (t.pm ? '' : 'is-on') + '">AM</button><button data-tstep="' + key + '" data-part="ap" data-v="pm" class="' + (t.pm ? 'is-on' : '') + '">PM</button></div>' +
+      '</div>' : '';
+    return '<div class="set-timeblock"><button class="set-row set-time" data-timeedit="' + key + '" aria-expanded="' + open + '"><div class="set-txt"><b>' + label + '</b>' + (hint ? '<span>' + hint + '</span>' : '') + '</div>' +
+      '<div class="set-ctl"><span class="set-val">' + App.nightLabel(val) + '</span><span class="set-chev">' + (open ? '⌃' : '›') + '</span></div></button>' + ed + '</div>';
+  }
+  function stepTime(key, part, d, v) {
+    var cur = App.night[key], h = +cur.slice(0, 2), m = +cur.slice(3);
+    if (part === 'h') h = (h + d + 24) % 24;
+    else if (part === 'm') m = d > 0 ? (Math.floor(m / 5) + 1) * 5 % 60 : (Math.ceil(m / 5) - 1 + 12) % 12 * 5;
+    else if (part === 'ap') h = (h % 12) + (v === 'pm' ? 12 : 0);
+    return ('0' + h).slice(-2) + ':' + ('0' + m).slice(-2);
   }
   function list(rows) { return '<div class="set-list">' + rows.join('') + '</div>'; }
   function page(title, action, body) { return '<div class="set-head"><h2 class="set-h">' + title + '</h2>' + (action || '') + '</div>' + body; }
@@ -336,7 +352,7 @@
     clearInterval(adbTimer);
     adbTimer = setInterval(function () { if ($('#demo').classList.contains('is-open')) fillAdb(); else clearInterval(adbTimer); }, 1000);
   };
-  function closeDemo() { $('#demo').classList.remove('is-open'); clearInterval(adbTimer); }
+  function closeDemo() { EDIT = null; $('#demo').classList.remove('is-open'); clearInterval(adbTimer); }
 
   function demoClick(e) {
     var b = e.target.closest('button');
@@ -351,7 +367,14 @@
       }
       return;
     }
-    if (b.dataset.sec) { SEC = b.dataset.sec; App.openDemo(); return; }
+    if (b.dataset.sec) { SEC = b.dataset.sec; EDIT = null; App.openDemo(); return; }
+    if (b.dataset.timeedit) { EDIT = EDIT === b.dataset.timeedit ? null : b.dataset.timeedit; App.openDemo(); return; }
+    if (b.dataset.tstep) {
+      var tp = {}; tp[b.dataset.tstep] = stepTime(b.dataset.tstep, b.dataset.part, +b.dataset.d || 0, b.dataset.v);
+      App.setNight(tp);
+      App.openDemo();
+      return;
+    }
     if (b.dataset.ss) { App.setSlideshow({ [b.dataset.ss]: b.dataset.v }); App.openDemo(); return; }
     if (b.dataset.ssflag) { var k = b.dataset.ssflag, q = {}; q[k] = !App.slideshow[k]; App.setSlideshow(q); App.openDemo(); return; }
     if (b.dataset.sstep) { App.setSlideshow({ interval: Math.max(5, Math.min(120, App.slideshow.interval + (+b.dataset.d) * 5)) }); App.openDemo(); return; }
@@ -404,14 +427,6 @@
 
   App.on('ready', function () {
     $('#demo').addEventListener('click', demoClick);
-    // Time pickers: a tap anywhere on the box opens the picker, not just on its little icon.
-    $('#demo').addEventListener('click', function (e) {
-      var l = e.target.closest('.set-time'), i = l && l.querySelector('input');
-      if (!i) return;
-      e.preventDefault();
-      if (i.showPicker) { try { i.showPicker(); return; } catch (err) {} } // throws if one is already open
-      i.focus();
-    });
     // Volume: follows the slider; a check sound when let go, so it can be set by ear.
     $('#demo').addEventListener('input', function (e) {
       if (!e.target.hasAttribute('data-volume')) return;
