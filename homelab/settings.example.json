@@ -1,0 +1,29 @@
+{
+  "_readme": "Copy to /opt/photoframe/config/settings.json on the server (not secret, but personal: it is not committed). Secrets go in secrets.env.",
+  "timezone": "America/Los_Angeles",
+  "location": { "lat": 47.6, "lon": -122.3, "units": "fahrenheit" },
+  "people": [{ "id": "me", "name": "Me", "color": "#2D5BFF" }],
+  "shopping": {
+    "homeAssistantLists": false,
+    "stores": [
+      { "id": "costco", "name": "Costco" },
+      { "id": "safeway", "name": "Safeway" },
+      { "id": "trader_joes", "name": "Trader Joe's" },
+      { "id": "other", "name": "Other" }
+    ],
+    "categories": ["Produce", "Dairy & Eggs", "Meat & Seafood", "Bakery", "Pantry", "Frozen", "Snacks", "Beverages", "Household", "Personal care"],
+    "usuals": ["Milk", "Eggs", "Bananas", "Bread", "Butter", "Coffee", "Chicken breasts", "Paper towels"],
+    "catalog": {
+      "Produce": ["Apples", "Avocados", "Bananas", "Blueberries", "Broccoli", "Carrots", "Cucumber", "Garlic", "Grapes", "Lemons", "Lettuce", "Onions", "Potatoes", "Spinach", "Strawberries", "Tomatoes"],
+      "Dairy & Eggs": ["Butter", "Cheddar", "Cream cheese", "Eggs", "Greek yogurt", "Milk", "Oat milk", "Parmesan", "Sour cream"],
+      "Meat & Seafood": ["Bacon", "Chicken breasts", "Chicken thighs", "Ground beef", "Salmon", "Shrimp", "Sausages"],
+      "Bakery": ["Bagels", "Bread", "Tortillas", "Buns"],
+      "Pantry": ["Beans", "Cereal", "Coffee", "Flour", "Honey", "Olive oil", "Pasta", "Pasta sauce", "Peanut butter", "Rice", "Sugar", "Tea"],
+      "Frozen": ["Frozen berries", "Frozen peas", "Ice cream", "Pizza"],
+      "Snacks": ["Chips", "Crackers", "Dark chocolate", "Nuts", "Popcorn"],
+      "Beverages": ["Sparkling water", "Juice", "Soda", "Water"],
+      "Household": ["Dish soap", "Dishwasher tablets", "Laundry detergent", "Paper towels", "Toilet paper", "Trash bags"],
+      "Personal care": ["Shampoo", "Toothpaste", "Deodorant", "Soap"]
+    }
+  }
+}

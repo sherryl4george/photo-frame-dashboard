@@ -34,6 +34,9 @@ export function startMqtt(secrets, onCommand, log = console) {
   const lastState = new Map(); // frame id -> last state JSON string
   const lastAvail = new Map();
   let up = false;
+  const subs = [];       // { pattern, handler }: other modules (the shopping lists) listening on their own topics
+  const upHandlers = []; // run each time the broker connection comes up
+  const matches = (pattern, topic) => { const p = pattern.split('/'), t = topic.split('/'); return p.length === t.length && p.every((x, i) => x === '+' || x === t[i]); };
 
   const client = mqtt.connect('mqtt://' + secrets.MQTT_HOST + ':' + (secrets.MQTT_PORT || 1883), {
     username: secrets.MQTT_USER, password: secrets.MQTT_PASS, clientId: 'photoframe-server',
@@ -71,13 +74,16 @@ export function startMqtt(secrets, onCommand, log = console) {
     log.log('mqtt: connected to ' + secrets.MQTT_HOST);
     client.publish(BASE + '/bridge/availability', 'online', { retain: true, qos: 1 });
     client.subscribe(BASE + '/+/+/set', { qos: 1 });
+    subs.forEach((x) => client.subscribe(x.pattern, { qos: 1 }));
     known.clear(); lastState.clear(); lastAvail.clear(); // a new session: publish everything again
     api.onReady && api.onReady();
+    upHandlers.forEach((f) => f());
   });
   client.on('reconnect', () => { up = false; });
   client.on('close', () => { up = false; });
   client.on('error', (e) => log.error('mqtt: ' + e.message));
   client.on('message', (topic, payload) => {
+    subs.forEach((x) => { if (matches(x.pattern, topic)) x.handler(topic, payload.toString()); });
     const m = /^photoframe\/([a-z0-9]{6,40})\/([a-z]+)\/set$/.exec(topic);
     if (!m || !FRAME_ID.test(m[1])) return;
     const c = parseCommand(m[2], payload.toString());
@@ -86,6 +92,10 @@ export function startMqtt(secrets, onCommand, log = console) {
 
   const api = {
     onReady: null,
+    isUp: () => up,
+    onUp(f) { upHandlers.push(f); if (up) f(); },
+    subscribe(pattern, handler) { subs.push({ pattern, handler }); if (up) client.subscribe(pattern, { qos: 1 }); },
+    publish(topic, payload, opts = {}) { if (!up) return false; client.publish(topic, payload, { retain: !!opts.retain, qos: 1 }); return true; },
     /** Make sure Home Assistant knows this frame, then publish its state and availability when they change. */
     frame(f, state, online) {
       if (!up || !FRAME_ID.test(f.id)) return;

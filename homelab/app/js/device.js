@@ -124,6 +124,7 @@
       else if (c.cmd === 'details') App.setSlideshow({ details: !!c.value });
       else if (c.cmd === 'weather') App.setSlideshow({ weather: !!c.value });
       else if (c.cmd === 'slideshow') { App.closeSheet(); App.rest(); }
+      else if (c.cmd === 'refresh') { App.refresh('state'); return; }
       else if (c.cmd === 'reload') { location.reload(); return; }
       soon();
     }

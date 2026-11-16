@@ -13,6 +13,7 @@ import crypto from 'node:crypto';
 import { DatabaseSync } from 'node:sqlite';
 import { fileURLToPath } from 'node:url';
 import { startMqtt } from './mqtt.mjs';
+import { createLists } from './lists.mjs';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const BASE = process.env.PHOTOFRAME_DIR || '/opt/photoframe';
@@ -116,7 +117,7 @@ const liveNotes = () => db.prepare('SELECT id, text, from_id, to_id, created, ex
 function getState() {
   return {
     people, stores, catOrder, catalog, usuals: shop.usuals || [],
-    groceries: db.prepare('SELECT id, name, cat, qty, store, note, done FROM groceries WHERE cleared = 0 ORDER BY updated_at').all().map((g) => ({ ...g, done: !!g.done })),
+    groceries: lists ? lists.groceries() : db.prepare('SELECT id, name, cat, qty, store, note, done FROM groceries WHERE cleared = 0 ORDER BY updated_at').all().map((g) => ({ ...g, done: !!g.done })),
     photos: db.prepare('SELECT id, o, date, place, from_id, fav FROM photos ORDER BY date DESC').all()
       .map((p) => ({ id: p.id, o: p.o, date: p.date, place: p.place, from: p.from_id, fav: !!p.fav, tag: p.date })),
     hasHome: false, scenes: [], cameras: [], bins: null, notes: liveNotes(), awayOffMinutes: 0,
@@ -156,6 +157,8 @@ const live = new Map();
 const ONLINE_MS = 150e3;      // a frame that checked in within this long is online even without an open stream
 const OFFLINE_GRACE_MS = 20e3; // a closed stream (reload, Wi-Fi blip) gets this long to come back
 let mqttBridge = null;
+let lists = null; // shopping lists mirrored from Home Assistant (when settings.shopping.homeAssistantLists is on)
+function broadcast(msg) { for (const f of live.values()) for (const res of f.streams) res.write('data: ' + JSON.stringify(msg) + '\n\n'); }
 
 function isOnline(f) { return f.streams.size > 0 || Date.now() - f.seen < ONLINE_MS; }
 function publishFrame(f) { if (mqttBridge && f.row) mqttBridge.frame(f.row, f.state, isOnline(f)); }
@@ -242,8 +245,8 @@ async function api(req, res, url) {
   if (p === '/notes' && m === 'POST') return reply(putNote(await readBody(req)));
   if ((r = /^\/notes\/([a-z0-9]{6,40})$/.exec(p)) && m === 'DELETE') return reply(clearNote(r[1], false));
   if ((r = /^\/notes\/([a-z0-9]{6,40})\/restore$/.exec(p)) && m === 'POST') return reply(clearNote(r[1], true));
-  if (p === '/groceries' && m === 'POST') return reply(putGrocery(await readBody(req)));
-  if (p === '/groceries/clear' && m === 'POST') return reply(clearGroceries(await readBody(req)));
+  if (p === '/groceries' && m === 'POST') return reply(lists ? lists.put(await readBody(req)) : putGrocery(await readBody(req)));
+  if (p === '/groceries/clear' && m === 'POST') { const b = await readBody(req); return reply(lists ? lists.clear(Array.isArray(b.ids) ? b.ids.filter((x) => typeof x === 'string').slice(0, 200) : [], b.cleared === false) : clearGroceries(b)); }
   if (p === '/photos' && m === 'POST') return bad(res, 'Photos are added with importer.py on the server, not from the page', 501);
   if ((r = /^\/photos\/([0-9a-f]{16})$/.exec(p))) {
     if (m === 'GET') return servePhoto(req, res, r[1], url.searchParams.has('b') ? 'bg' : url.searchParams.has('s') ? 'small' : 'full');
@@ -289,6 +292,11 @@ http.createServer(async (req, res) => {
 }).listen(PORT, '0.0.0.0', () => {
   console.log('Home HQ listening on :' + PORT + ' (' + BASE + ')');
   mqttBridge = startMqtt(SECRETS, (id, cmd) => sendToFrame(id, cmd));
+  if (mqttBridge && SETTINGS.shopping && SETTINGS.shopping.homeAssistantLists) {
+    lists = createLists({ stores, catalog, mqtt: mqttBridge, db, onChange: () => broadcast({ cmd: 'refresh' }) });
+    lists.start();
+    console.log('shopping: lists from Home Assistant (' + stores.map((x) => x.id).join(', ') + ')');
+  }
   if (mqttBridge) mqttBridge.onReady = () => {
     // Frames seen before this start: tell Home Assistant about them (offline until they check in again).
     for (const r of listFrames()) { const f = liveFrame(r.id); if (!f.row) { f.row = r; f.seen = r.seen; f.state = { screen: true, mode: 'day', rssi: r.rssi, version: r.version, kiosk: r.kiosk, model: r.model, android: r.android, name: r.name, slideshow: { layout: 'cover', interval: 14, details: true, weather: true } }; } publishFrame(f); }
