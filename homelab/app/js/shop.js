@@ -9,13 +9,13 @@ const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&
 const uid = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
 const plain = (s) => String(s || '').normalize('NFD').replace(/[̀-ͯ]/g, '').trim().toLowerCase();
 const cap = (s) => s.charAt(0).toUpperCase() + s.slice(1);
-const K = { cache: 'hq-shop-cache-v2', store: 'hq-shop-store', id: 'hq-shop-id', queue: 'hq-shop-queue', layout: 'hq-shop-layout', wake: 'hq-shop-wake' };
+const K = { last: 'hq-shop-last', cache: 'hq-shop-cache-v2', store: 'hq-shop-store', id: 'hq-shop-id', queue: 'hq-shop-queue', layout: 'hq-shop-layout', wake: 'hq-shop-wake' };
 const S = { stores: [], groceries: [], catalog: [], usuals: [], recent: [], catOrder: { all: [] }, store: 'all', online: true, locked: false, queue: [], layout: 'tiles', wake: false, query: '' };
 let wroteAt = 0, toastTimer = null, flushing = false, wakeLock = null;
 
 const load = (k, d) => { try { const v = localStorage.getItem(k); return v === null ? d : JSON.parse(v); } catch (e) { return d; } };
 const keep = (k, v) => { try { localStorage.setItem(k, JSON.stringify(v)); } catch (e) {} };
-S.store = load(K.store, 'all'); S.layout = load(K.layout, 'tiles'); S.wake = load(K.wake, false); S.queue = load(K.queue, []);
+S.last = load(K.last, ''); S.store = load(K.store, 'all'); S.layout = load(K.layout, 'tiles'); S.wake = load(K.wake, false); S.queue = load(K.queue, []);
 { const c = load(K.cache, null); if (c && c.stores) Object.assign(S, c); }
 
 async function api(method, path, body) {
@@ -114,12 +114,15 @@ async function refresh(force) {
 }
 
 // ------------------------------------------------------------------ actions
-function addItem(raw, picked) {
+function addItem(raw, picked, shop) {
+  if (!raw.trim() || !S.stores.length) return;
+  if (!shop && S.store === 'all') return askShop(raw, picked); // from "All" there is no obvious shop: ask
   const comma = raw.indexOf(',');
   let name = (comma >= 0 ? raw.slice(0, comma) : raw).trim(); const note = comma >= 0 ? raw.slice(comma + 1).trim() : '';
   if (!name || !S.stores.length) return;
   if (!picked) { const first = suggestions(name)[0]; if (first && plain(first[0]).startsWith(plain(name))) name = first[0]; } // Enter takes the top suggestion
-  const store = defaultStore();
+  const store = shop || S.store;
+  S.last = store; keep(K.last, store);
   const same = S.groceries.find((g) => g.store === store && plain(g.name) === plain(name));
   if (same) {
     if (same.done) { same.done = false; render(); send({ t: 'put', body: same }); toast('Back on the list: ' + same.name); }
@@ -128,6 +131,13 @@ function addItem(raw, picked) {
   }
   const g = { id: uid(), name: S.catalog.find((c) => plain(c[0]) === plain(name))?.[0] || cap(name), cat: catFor(name), qty: 1, store, done: false, note };
   S.groceries.push(g); render(); send({ t: 'put', body: g });
+  if (S.store === 'all') toast('Added ' + g.name + ' to ' + storeName(store));
+}
+function askShop(raw, picked) {
+  const name = raw.split(',')[0].trim();
+  const order = S.stores.slice().sort((a, b) => (b.id === S.last) - (a.id === S.last));
+  sheet('<h2>Add “' + esc(name) + '” to…</h2><div class="shoppick">' + order.map((s) => '<button data-pickshop="' + esc(s.id) + '">' + esc(s.name) + '<small>' + S.groceries.filter((g) => !g.done && g.store === s.id).length + ' to buy</small></button>').join('') + '</div><div class="actions"><button data-sheet="cancel">Cancel</button></div>');
+  $('#sheet').dataset.pending = JSON.stringify({ raw, picked: !!picked });
 }
 function tick(id) {
   const g = S.groceries.find((x) => x.id === id);
@@ -166,12 +176,19 @@ function render() {
   const showShop = S.store === 'all' && S.stores.length > 1;
   const todo = items.filter((g) => !g.done), done = items.filter((g) => g.done);
   let html = '';
-  order.forEach((cat) => {
+  const aisleOf = (g) => { const i = order.indexOf(g.cat || 'Other'); return i < 0 ? order.length - 1 : i; };
+  if (S.store === 'all') { // everything to buy, shop by shop
+    S.stores.forEach((s) => {
+      const mine = todo.filter((g) => g.store === s.id).sort((a, b) => aisleOf(a) - aisleOf(b));
+      if (mine.length) html += '<div class="aisle shophead">' + esc(s.name) + ' · ' + mine.length + '</div><div class="grid">' + mine.map((g) => tile(g, false, waiting)).join('') + '</div>';
+    });
+  } else order.forEach((cat) => {
     const mine = todo.filter((g) => (g.cat || 'Other') === cat || (cat === 'Other' && !order.includes(g.cat)));
-    if (mine.length) html += '<div class="aisle">' + esc(cat) + '</div><div class="grid">' + mine.map((g) => tile(g, showShop, waiting)).join('') + '</div>';
+    if (mine.length) html += '<div class="aisle">' + esc(cat) + '</div><div class="grid">' + mine.map((g) => tile(g, false, waiting)).join('') + '</div>';
   });
   if (!todo.length) html += '<div class="empty">' + (q ? 'Nothing matches.' : done.length ? 'Everything is in the cart.' : 'Nothing to buy.') + '</div>';
   if (done.length) html += '<div class="donehead"><div class="aisle">In the cart · ' + done.length + '</div><button class="clear" data-act="clear">Clear</button></div><div class="grid">' + done.map((g) => tile(g, showShop, waiting)).join('') + '</div>';
+  $('#addin').placeholder = S.store === 'all' ? 'Add an item (I’ll ask which shop)' : 'Add to ' + storeName(S.store) + '  (Milk, 2 liters)';
   const list = $('#list'); list.innerHTML = html; list.classList.toggle('rows', S.layout === 'rows');
   const have = new Set(S.groceries.filter((g) => !g.done && (S.store === 'all' || g.store === S.store)).map((g) => plain(g.name)));
   const pool = S.recent.map((r) => r.name).concat(S.usuals);
@@ -187,7 +204,7 @@ function showSuggest(q) {
 }
 
 // ------------------------------------------------------------------ sheets
-function sheet(html) { const sh = $('#sheet'); sh.innerHTML = '<div class="card">' + html + '</div>'; sh.hidden = false; }
+function sheet(html) { if (document.activeElement && document.activeElement.blur) document.activeElement.blur(); /* close the keyboard so it cannot cover the popup */ const sh = $('#sheet'); sh.innerHTML = '<div class="card">' + html + '</div>'; sh.hidden = false; }
 function closeSheet() { const sh = $('#sheet'); sh.hidden = true; sh.innerHTML = ''; delete sh.dataset.id; }
 function openEdit(id) {
   const g = S.groceries.find((x) => x.id === id);
@@ -230,6 +247,7 @@ document.addEventListener('click', (e) => {
   if (t.dataset.act === 'edit') return openEdit(t.dataset.id);
   if (t.dataset.act === 'clear') return clearDone();
   if (t.dataset.act === 'shops') return openShops();
+  if (t.dataset.pickshop) { let p = {}; try { p = JSON.parse(sh.dataset.pending || '{}'); } catch (x) {} closeSheet(); $('#addin').value = ''; $('#suggest').hidden = true; return addItem(p.raw || '', p.picked, t.dataset.pickshop); }
   if (t.dataset.add) { $('#addin').value = ''; $('#suggest').hidden = true; return addItem(t.dataset.add, true); }
   if (t.dataset.q) { const el = $('#eqty'); el.textContent = Math.max(1, Math.min(99, +el.textContent + +t.dataset.q)); return; }
   if (t.dataset.menu === 'layout') { S.layout = S.layout === 'tiles' ? 'rows' : 'tiles'; keep(K.layout, S.layout); render(); return openMenu(); }

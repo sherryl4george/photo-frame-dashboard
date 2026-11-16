@@ -66,3 +66,9 @@ button { font: inherit; color: inherit; background: none; border: 0; padding: 0;
 .pill { font-size: 11px; font-weight: 800; border-radius: 999px; padding: 2px 8px; margin-left: 6px; background: var(--paper-2); color: var(--mute); } .pill.ha { background: #D9F0E6; color: #00734D; }
 .toast { position: fixed; left: 50%; transform: translateX(-50%); bottom: calc(170px + env(safe-area-inset-bottom)); z-index: 12; background: var(--ink); color: var(--paper); border-radius: 14px; padding: 12px 16px; font-size: 15px; font-weight: 600; display: flex; gap: 14px; align-items: center; max-width: calc(100vw - 32px); }
 .toast button { color: var(--warm); font-weight: 800; }
+
+.shophead { color: var(--ink); font-size: 14px; letter-spacing: .06em; }
+.shoppick { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+.shoppick button { min-height: 76px; border-radius: 18px; background: var(--paper-2); font-size: 18px; font-weight: 800; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; }
+.shoppick button:first-child { background: var(--ink); color: var(--paper); }
+.shoppick small { font-size: 12px; font-weight: 600; opacity: .7; }
