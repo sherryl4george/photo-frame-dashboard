@@ -67,10 +67,12 @@ After changing the punch level, add `--reprocess-all` to the importer command on
 
 ## On the server
 
-`/opt/photoframe`: `node/` (portable Node 24, SHA-256 checked), `app/`, `server/`, `config/` (settings.json,
-secrets.json with the dashboard key, mode 600, never committed), `data/`, `incoming/`.
+`/opt/photoframe`: `node/` (portable Node 24, SHA-256 checked), `app/`, `server/`, `config/` (`settings.json` for
+non-secret settings; `secrets.env` for the dashboard key and later the MQTT and Home Assistant logins, mode 600,
+never committed; see [secrets.example.env](secrets.example.env)), `data/`, `incoming/`.
 User systemd units (`~/.config/systemd/user/`, lingering on): `photoframe.service` (the server, port 8080,
-sandboxed: it can only write `data/`), `photoframe-import.service` and `.timer` (every 5 minutes).
+sandboxed: it can only write `data/`; it loads `config/secrets.env` with `EnvironmentFile=`, and the server still
+falls back to an old `config/secrets.json` if present), `photoframe-import.service` and `.timer` (every 5 minutes).
 
 ```sh
 systemctl --user status photoframe.service photoframe-import.timer

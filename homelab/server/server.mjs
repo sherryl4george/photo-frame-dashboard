@@ -21,8 +21,14 @@ const DAY_MS = 864e5;
 
 const readJson = (p, fallback) => { try { return JSON.parse(fs.readFileSync(p, 'utf8')); } catch (e) { if (fallback !== undefined) return fallback; throw e; } };
 const SETTINGS = readJson(path.join(BASE, 'config', 'settings.json'));
-const SECRETS = readJson(path.join(BASE, 'config', 'secrets.json'));
-if (!SECRETS.DASHBOARD_KEY || SECRETS.DASHBOARD_KEY.length < 16) { console.error('config/secrets.json needs a DASHBOARD_KEY of at least 16 characters'); process.exit(1); }
+// Secrets: environment variables first (systemd loads config/secrets.env into the service), then the older
+// config/secrets.json as a fallback. Values are never logged.
+const SECRET_NAMES = ['DASHBOARD_KEY', 'MQTT_HOST', 'MQTT_USER', 'MQTT_PASS', 'HA_TOKEN'];
+const SECRETS = Object.assign({}, readJson(path.join(BASE, 'config', 'secrets.json'), {}));
+const fromEnv = SECRET_NAMES.filter((k) => process.env[k]);
+fromEnv.forEach((k) => { SECRETS[k] = process.env[k]; });
+if (!SECRETS.DASHBOARD_KEY || SECRETS.DASHBOARD_KEY.length < 16) { console.error('DASHBOARD_KEY (at least 16 characters) is missing: set it in config/secrets.env'); process.exit(1); }
+console.log('secrets: ' + (fromEnv.length ? fromEnv.length + ' from the environment (secrets.env)' : 'from secrets.json') + (SECRETS.DASHBOARD_KEY && !process.env.DASHBOARD_KEY ? ', DASHBOARD_KEY from secrets.json' : ''));
 
 const db = new DatabaseSync(path.join(DATA_DIR, 'photoframe.db'));
 db.exec(fs.readFileSync(path.join(HERE, 'schema.sql'), 'utf8'));
