@@ -10,6 +10,7 @@ and the importer then removes them from the frame. Nothing in YOUR folder is eve
   ./push-photos.py ~/Pictures/frame --dry-run
 
 Needs ssh access to the server (key login) and `tar` on both ends. No rsync needed.
+The server comes from --host, $FRAME_HOST, or the first line of ~/.config/photoframe/host (kept out of git).
 """
 import argparse, os, shlex, subprocess, sys
 
@@ -19,11 +20,19 @@ EXTS = {".jpg", ".jpeg", ".png"}
 def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("folder")
-    ap.add_argument("--host", default=os.environ.get("FRAME_HOST", "<user>@<server>"))
+    ap.add_argument("--host", help="user@server (default: $FRAME_HOST, or the first line of ~/.config/photoframe/host)")
     ap.add_argument("--remote", default="/opt/photoframe/incoming")
     ap.add_argument("--delete", action="store_true", help="remove server-side photos that are not in the folder")
     ap.add_argument("--dry-run", action="store_true")
     a = ap.parse_args()
+
+    if not a.host:
+        a.host = os.environ.get("FRAME_HOST", "")
+        cfg = os.path.expanduser("~/.config/photoframe/host")
+        if not a.host and os.path.exists(cfg):
+            a.host = open(cfg).readline().strip()
+    if not a.host:
+        sys.exit("no server given: use --host user@server, set FRAME_HOST, or put it in ~/.config/photoframe/host")
 
     local = {}
     for r, _, fs in os.walk(a.folder):
