@@ -92,7 +92,9 @@
     App.api('POST', '/frames', {
       id: frameId(), name: frameName(info), version: __APP_VERSION__, build: __BUILD_ID__,
       kiosk: info.kiosk || '', rssi: typeof info.rssi === 'number' ? info.rssi : null,
-      model: info.model || '', android: info.android || '', loaded: loadedAt
+      model: info.model || '', android: info.android || '', loaded: loadedAt,
+      // What Home Assistant shows (over MQTT): the screen, the mode, and the slideshow settings.
+      mode: App.mode, screen: App.mode !== 'off', slideshow: App.slideshow
     }).catch(function () {});
   }
   App.frameId = frameId;
@@ -101,7 +103,30 @@
   var named = /[?&]frame=/.test(location.search);
   if (!named) try { named = !!localStorage.getItem('hq-frame-name'); } catch (e) {}
   if (K || named) {
-    App.on('ready', function () { setTimeout(beat, 5000); setInterval(beat, 5 * 60e3); });
+    App.on('ready', function () { setTimeout(beat, 5000); setInterval(beat, 60e3); });
+    // Report right away when something changes, so Home Assistant isn't a minute behind.
+    var beatSoon = null;
+    function soon() { clearTimeout(beatSoon); beatSoon = setTimeout(beat, 600); }
+    App.on('mode', soon);
+    App.on('slideshow', soon);
+    // Commands from Home Assistant arrive on a server-sent event stream (the server turns MQTT into these).
+    App.on('ready', function () {
+      if (!window.EventSource) return;
+      var es = new EventSource('/api/events?frame=' + encodeURIComponent(frameId()));
+      es.onmessage = function (e) { try { command(JSON.parse(e.data)); } catch (err) {} };
+    });
+    function command(c) {
+      if (c.cmd === 'screen') {
+        if (c.value === 'off') { App.closeSheet(); App.setMode('off', true); }
+        else if (App.mode === 'off') { App.setMode('day'); App.go('home'); }
+      } else if (c.cmd === 'style') App.setSlideshow({ layout: c.value });
+      else if (c.cmd === 'seconds') App.setSlideshow({ interval: +c.value });
+      else if (c.cmd === 'details') App.setSlideshow({ details: !!c.value });
+      else if (c.cmd === 'weather') App.setSlideshow({ weather: !!c.value });
+      else if (c.cmd === 'slideshow') { App.closeSheet(); App.rest(); }
+      else if (c.cmd === 'reload') { location.reload(); return; }
+      soon();
+    }
   }
 
   // ------------------------------------------------------------ reload after a deploy

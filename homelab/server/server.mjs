@@ -12,6 +12,7 @@ import path from 'node:path';
 import crypto from 'node:crypto';
 import { DatabaseSync } from 'node:sqlite';
 import { fileURLToPath } from 'node:url';
+import { startMqtt } from './mqtt.mjs';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const BASE = process.env.PHOTOFRAME_DIR || '/opt/photoframe';
@@ -149,6 +150,16 @@ function putNote(b) {
 }
 const clearNote = (id, undo) => { db.prepare('UPDATE notes SET cleared = ? WHERE id = ?').run(undo ? null : Date.now(), id); return [200, { ok: true, notes: liveNotes() }]; };
 
+// ------------------------------------------------------------------ frames: live state, MQTT, command channel
+// live: frame id -> { row, state, seen, streams: Set of open event streams, offlineTimer }
+const live = new Map();
+const ONLINE_MS = 150e3;      // a frame that checked in within this long is online even without an open stream
+const OFFLINE_GRACE_MS = 20e3; // a closed stream (reload, Wi-Fi blip) gets this long to come back
+let mqttBridge = null;
+
+function isOnline(f) { return f.streams.size > 0 || Date.now() - f.seen < ONLINE_MS; }
+function publishFrame(f) { if (mqttBridge && f.row) mqttBridge.frame(f.row, f.state, isOnline(f)); }
+
 function frameBeat(b) {
   const id = str(b.id, 40);
   if (!/^[a-z0-9]{6,40}$/.test(id)) return [400, { error: 'id required' }];
@@ -157,8 +168,44 @@ function frameBeat(b) {
     loaded: typeof b.loaded === 'number' ? b.loaded : null, seen: Date.now() };
   db.prepare('INSERT INTO cache (key, value, expires) VALUES (?, ?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value, expires = excluded.expires')
     .run('frame:' + id, JSON.stringify(row), Date.now() + 30 * DAY_MS);
+  const f = liveFrame(id);
+  const ss = b.slideshow && typeof b.slideshow === 'object' ? b.slideshow : {};
+  f.row = row; f.seen = row.seen;
+  f.state = { screen: b.screen !== false, mode: str(b.mode, 12) || 'day', rssi: row.rssi, version: row.version, kiosk: row.kiosk, model: row.model, android: row.android, name: row.name,
+    slideshow: { layout: ['auto', 'cover', 'pair', 'collage', 'polaroid'].includes(ss.layout) ? ss.layout : 'cover', interval: Math.max(5, Math.min(120, +ss.interval || 14)),
+      details: ss.details !== false, weather: ss.weather !== false } };
+  publishFrame(f);
   return [200, { ok: true, replaced: 0 }];
 }
+function liveFrame(id) {
+  let f = live.get(id);
+  if (!f) { f = { row: null, state: null, seen: 0, streams: new Set(), offlineTimer: null }; live.set(id, f); }
+  return f;
+}
+/** Server-sent events: the page listens here for commands (from Home Assistant over MQTT). */
+function openStream(req, res, id) {
+  if (!/^[a-z0-9]{6,40}$/.test(id)) return bad(res, 'frame id required');
+  const f = liveFrame(id);
+  res.writeHead(200, { 'content-type': 'text/event-stream', 'cache-control': 'no-store', connection: 'keep-alive', 'x-accel-buffering': 'no' });
+  res.write('retry: 3000\n\n');
+  f.streams.add(res);
+  clearTimeout(f.offlineTimer);
+  publishFrame(f);
+  const ping = setInterval(() => res.write(': ping\n\n'), 25e3);
+  req.on('close', () => {
+    clearInterval(ping);
+    f.streams.delete(res);
+    if (!f.streams.size) { clearTimeout(f.offlineTimer); f.offlineTimer = setTimeout(() => publishFrame(f), OFFLINE_GRACE_MS + 1000); }
+  });
+}
+function sendToFrame(id, msg) {
+  const f = live.get(id);
+  if (!f || !f.streams.size) { console.log('command for a frame that is not connected: ' + msg.cmd); return false; }
+  for (const res of f.streams) res.write('data: ' + JSON.stringify(msg) + '\n\n');
+  return true;
+}
+// Re-check online/offline now and then (a frame that went quiet has no event to say so).
+setInterval(() => { for (const f of live.values()) publishFrame(f); }, 30e3);
 const listFrames = () => db.prepare("SELECT value FROM cache WHERE key LIKE 'frame:%' AND expires > ?").all(Date.now()).map((r) => JSON.parse(r.value)).sort((a, b) => (a.name < b.name ? -1 : 1));
 
 // ------------------------------------------------------------------ photos
@@ -189,6 +236,7 @@ async function api(req, res, url) {
   if (p === '/calendar' && m === 'GET') return send(res, 200, { events: [], errors: [], checked: Date.now() });
   if (p.indexOf('/home') === 0) return send(res, 200, { none: true });
   if (p === '/alerts' && m === 'GET') return send(res, 200, { seq: 0 });
+  if (p === '/events' && m === 'GET') return openStream(req, res, url.searchParams.get('frame') || '');
   if (p === '/frames' && m === 'POST') return reply(frameBeat(await readBody(req)));
   if (p === '/frames' && m === 'GET') return send(res, 200, listFrames());
   if (p === '/notes' && m === 'POST') return reply(putNote(await readBody(req)));
@@ -238,4 +286,13 @@ http.createServer(async (req, res) => {
     console.error(err);
     if (!res.headersSent) bad(res, String(err.message || err), 500); else res.end();
   }
-}).listen(PORT, '0.0.0.0', () => console.log('Home HQ listening on :' + PORT + ' (' + BASE + ')'));
+}).listen(PORT, '0.0.0.0', () => {
+  console.log('Home HQ listening on :' + PORT + ' (' + BASE + ')');
+  mqttBridge = startMqtt(SECRETS, (id, cmd) => sendToFrame(id, cmd));
+  if (mqttBridge) mqttBridge.onReady = () => {
+    // Frames seen before this start: tell Home Assistant about them (offline until they check in again).
+    for (const r of listFrames()) { const f = liveFrame(r.id); if (!f.row) { f.row = r; f.seen = r.seen; f.state = { screen: true, mode: 'day', rssi: r.rssi, version: r.version, kiosk: r.kiosk, model: r.model, android: r.android, name: r.name, slideshow: { layout: 'cover', interval: 14, details: true, weather: true } }; } publishFrame(f); }
+    for (const f of live.values()) publishFrame(f);
+  };
+});
+process.on('SIGTERM', () => { if (mqttBridge) mqttBridge.close(); setTimeout(() => process.exit(0), 500); });

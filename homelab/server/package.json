@@ -1,0 +1,7 @@
+{
+  "name": "home-hq-server",
+  "private": true,
+  "type": "module",
+  "description": "Home HQ homelab server. The only dependency is the MQTT client, pinned exactly.",
+  "dependencies": { "mqtt": "5.16.1" }
+}
