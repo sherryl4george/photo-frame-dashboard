@@ -79,6 +79,19 @@ systemctl --user status photoframe.service photoframe-import.timer
 journalctl --user -u photoframe-import.service --since today
 ```
 
+## The phone shopping page
+
+`http://<server-ip>:8080/shop` is a one-column page for phones: a tab per shop, a bottom bar to add items (with
+suggestions from the usual-items list and a row of usuals), tap an item to tick it off, a ⋯ sheet to change the
+name, quantity, note, shop or aisle, and Clear with Undo. It uses the same list as the wall display and updates
+live. The last list is kept on the phone, so it still opens (read-only) when the signal drops in a shop.
+
+Open it once from the family link (`.../shop?key=<DASHBOARD_KEY>`), which stores the key in the phone's browser;
+after that `/shop` is enough. Over HTTPS it can be installed to the home screen (Chrome menu, "Install app");
+plain HTTP on the LAN works in the browser but cannot be installed. A phone has to be able to reach the server:
+see the networking notes in the project history (a phone on a different network from the server needs a tunnel,
+a port forward or a VPN).
+
 ## Pointing the frame at it, and undoing it
 
 ```sh

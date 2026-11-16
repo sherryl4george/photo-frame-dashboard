@@ -12,5 +12,5 @@ export default defineConfig({
     name: 'build-json',
     generateBundle() { this.emitFile({ type: 'asset', fileName: 'build.json', source: JSON.stringify({ build: BUILD_ID, version: pkg.version }) }); },
   }],
-  build: { target: 'chrome106', cssTarget: 'chrome61' },
+  build: { target: 'chrome106', cssTarget: 'chrome61', rollupOptions: { input: { main: 'index.html', shop: 'shop.html' } } },
 });

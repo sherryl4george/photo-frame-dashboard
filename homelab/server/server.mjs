@@ -260,6 +260,7 @@ const TYPES = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; ch
 function serveStatic(req, res, url) {
   let rel = decodeURIComponent(url.pathname);
   if (rel.endsWith('/')) rel += 'index.html';
+  else if (!path.extname(rel)) rel += '.html'; // /shop -> shop.html
   const file = path.normalize(path.join(APP_DIR, rel));
   if (file !== APP_DIR && !file.startsWith(APP_DIR + path.sep)) return bad(res, 'not found', 404);
   fs.stat(file, (err, st) => {
