@@ -81,16 +81,24 @@ journalctl --user -u photoframe-import.service --since today
 
 ## The phone shopping page
 
-`http://<server-ip>:8080/shop` is a one-column page for phones: a tab per shop, a bottom bar to add items (with
-suggestions from the usual-items list and a row of usuals), tap an item to tick it off, a ⋯ sheet to change the
-name, quantity, note, shop or aisle, and Clear with Undo. It uses the same list as the wall display and updates
-live. The last list is kept on the phone, so it still opens (read-only) when the signal drops in a shop.
+`http://<server-ip>:8080/shop` is a page for phones in the style of a grocery app:
 
-Open it once from the family link (`.../shop?key=<DASHBOARD_KEY>`), which stores the key in the phone's browser;
-after that `/shop` is enough. Over HTTPS it can be installed to the home screen (Chrome menu, "Install app");
-plain HTTP on the LAN works in the browser but cannot be installed. A phone has to be able to reach the server:
-see the networking notes in the project history (a phone on a different network from the server needs a tunnel,
-a port forward or a VPN).
+- **Large tiles** grouped by aisle, each with an emoji icon (switch to a plain list in the ⋮ menu). Tap a tile to
+  tick it off into "In the cart"; long-press (or ⋯) to edit the name, quantity, note, shop and aisle.
+- **A tab per shop**, with counts, and **+ Shop** to add one (⋮ → Manage shops also renames and deletes empty ones).
+  A new shop works straight away; see [home-assistant/shopping.md](home-assistant/shopping.md) to also give it a
+  Home Assistant list.
+- **Quick add:** type `Milk, 2 liters` (the part after the comma becomes the note); suggestions come from what you
+  have used before, and Enter takes the first one. The row above the box holds your recent items.
+- **Search** the list (🔍). **Keep the screen on** while shopping (⋮ menu, on phones that support it over HTTPS).
+- **Works without signal:** the last list stays visible, and changes are kept in a queue on the phone and sent in
+  order when the connection (or Home Assistant) is back. Items still waiting show a small ⏳.
+- Live updates from the wall display, other phones and Home Assistant, within a few seconds.
+
+Open it once from the family link (`.../shop?key=<DASHBOARD_KEY>`); the key is then remembered by that phone's
+browser. Over HTTPS it can be installed to the home screen (Chrome menu, "Install app"); plain HTTP on the LAN
+works in the browser but cannot be installed, and "keep the screen on" needs HTTPS. The phone has to be able to
+reach the server (a phone on a different network from the server needs a tunnel, a port forward or a VPN).
 
 ## Pointing the frame at it, and undoing it
 

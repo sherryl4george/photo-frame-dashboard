@@ -37,3 +37,11 @@ CREATE TABLE IF NOT EXISTS cache (
 CREATE TABLE IF NOT EXISTS src_bad (   -- originals that could not be read as images; skipped until they change
   hash TEXT PRIMARY KEY, name TEXT, error TEXT
 );
+
+CREATE TABLE IF NOT EXISTS shops (      -- the shops on the shopping list; each may be backed by a Home Assistant to-do list
+  id TEXT PRIMARY KEY, name TEXT NOT NULL, position INTEGER NOT NULL DEFAULT 0
+);
+CREATE TABLE IF NOT EXISTS recent (     -- what has been on the list before: suggestions, and the aisle learned for each item
+  key TEXT PRIMARY KEY, name TEXT NOT NULL, cat TEXT NOT NULL DEFAULT 'Other', uses INTEGER NOT NULL DEFAULT 1, last INTEGER NOT NULL
+);
+CREATE INDEX IF NOT EXISTS recent_last ON recent (last);

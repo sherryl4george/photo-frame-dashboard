@@ -4,7 +4,6 @@
   "location": { "lat": 47.6, "lon": -122.3, "units": "fahrenheit" },
   "people": [{ "id": "me", "name": "Me", "color": "#2D5BFF" }],
   "shopping": {
-    "homeAssistantLists": false,
     "stores": [
       { "id": "costco", "name": "Costco" },
       { "id": "safeway", "name": "Safeway" },

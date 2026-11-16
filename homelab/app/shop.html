@@ -15,16 +15,21 @@
 </head>
 <body>
   <header class="top">
-    <div class="title"><h1>Shopping</h1><span id="status" class="status" title="Connection"></span></div>
+    <div class="title"><h1>Shopping</h1><span id="status" class="status" title="Connection"></span>
+      <span class="grow"></span>
+      <button id="searchbtn" class="iconbtn" aria-label="Search the list">🔍</button>
+      <button id="menubtn" class="iconbtn" aria-label="Menu">⋮</button>
+    </div>
     <nav id="tabs" class="tabs" aria-label="Shops"></nav>
+    <input id="search" class="search" type="search" placeholder="Search the list" aria-label="Search the list" hidden>
   </header>
   <p id="banner" class="banner" hidden></p>
   <main id="list" class="list" aria-live="polite"></main>
   <footer class="addbar">
-    <div id="usuals" class="usuals"></div>
+    <div id="recent" class="usuals"></div>
     <div id="suggest" class="suggest" hidden></div>
     <form id="addform" class="addform" autocomplete="off">
-      <input id="addin" type="text" enterkeyhint="done" placeholder="Add an item" aria-label="Add an item" maxlength="80" autocapitalize="sentences">
+      <input id="addin" type="text" enterkeyhint="done" placeholder="Add an item  (Milk, 2 liters)" aria-label="Add an item" maxlength="100" autocapitalize="sentences">
       <button type="submit" aria-label="Add">Add</button>
     </form>
   </footer>

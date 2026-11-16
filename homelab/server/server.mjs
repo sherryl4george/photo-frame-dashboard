@@ -110,36 +110,30 @@ async function getWeather() {
   return Object.assign({}, w, { warnings: [] });
 }
 
+// ------------------------------------------------------------------ the shopping list
+// Always on. Shops backed by a Home Assistant to-do list are mirrored over MQTT; the rest are kept here (see lists.mjs).
+const mqttProxy = {
+  isUp: () => !!(mqttBridge && mqttBridge.isUp()),
+  publish: (t, p) => (mqttBridge ? mqttBridge.publish(t, p) : false),
+  subscribe: (pat, h) => { if (mqttBridge) mqttBridge.subscribe(pat, h); },
+  onUp: (f) => { if (mqttBridge) mqttBridge.onUp(f); },
+};
+const lists = createLists({ db, mqtt: mqttProxy, catalog, seedShops: stores, onChange: () => broadcast({ cmd: 'refresh' }) });
+
 // ------------------------------------------------------------------ state, lists, notes
 const liveNotes = () => db.prepare('SELECT id, text, from_id, to_id, created, expires FROM notes WHERE cleared IS NULL AND (expires IS NULL OR expires > ?) ORDER BY created DESC LIMIT 20')
   .all(Date.now()).map((n) => ({ id: n.id, text: n.text, from: n.from_id, to: n.to_id, created: n.created, expires: n.expires }));
 
 function getState() {
   return {
-    people, stores, catOrder, catalog, usuals: shop.usuals || [],
-    groceries: lists ? lists.groceries() : db.prepare('SELECT id, name, cat, qty, store, note, done FROM groceries WHERE cleared = 0 ORDER BY updated_at').all().map((g) => ({ ...g, done: !!g.done })),
+    people, stores: lists.shops().map((x) => ({ ...x, ha: lists.haBacked(x.id) })), catOrder, catalog, usuals: shop.usuals || [], recent: lists.recent(),
+    groceries: lists.groceries(),
     photos: db.prepare('SELECT id, o, date, place, from_id, fav FROM photos ORDER BY date DESC').all()
       .map((p) => ({ id: p.id, o: p.o, date: p.date, place: p.place, from: p.from_id, fav: !!p.fav, tag: p.date })),
     hasHome: false, scenes: [], cameras: [], bins: null, notes: liveNotes(), awayOffMinutes: 0,
   };
 }
 
-function putGrocery(b) {
-  const id = str(b.id, 64), name = str(b.name, 80);
-  if (!id || !name) return [400, { error: 'id and name required' }];
-  const store = stores.some((s) => s.id === b.store) ? b.store : stores[0].id;
-  db.prepare('INSERT INTO groceries (id, name, cat, qty, store, note, done, cleared, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, 0, ?) ' +
-    'ON CONFLICT(id) DO UPDATE SET name = excluded.name, cat = excluded.cat, qty = excluded.qty, store = excluded.store, note = excluded.note, done = excluded.done, cleared = 0, updated_at = excluded.updated_at')
-    .run(id, name, str(b.cat, 40) || 'Other', Math.max(1, Math.min(99, parseInt(b.qty, 10) || 1)), store, str(b.note, 120), b.done ? 1 : 0, Date.now());
-  return [200, { ok: true }];
-}
-function clearGroceries(b) {
-  const ids = Array.isArray(b.ids) ? b.ids.filter((x) => typeof x === 'string').slice(0, 500) : [];
-  const now = Date.now(), up = db.prepare('UPDATE groceries SET cleared = ?, updated_at = ? WHERE id = ?');
-  ids.forEach((id) => up.run(b.cleared === false ? 0 : 1, now, id));
-  db.prepare('DELETE FROM groceries WHERE cleared = 1 AND updated_at < ?').run(now - 30 * DAY_MS);
-  return [200, { ok: true }];
-}
 function putNote(b) {
   const id = str(b.id, 40), text = str(b.text, 140), person = (pid) => people.find((p) => p.id === pid);
   if (!/^[a-z0-9]{6,40}$/.test(id) || !text || !person(b.from)) return [400, { error: 'id, text and from (a person) required' }];
@@ -157,7 +151,6 @@ const live = new Map();
 const ONLINE_MS = 150e3;      // a frame that checked in within this long is online even without an open stream
 const OFFLINE_GRACE_MS = 20e3; // a closed stream (reload, Wi-Fi blip) gets this long to come back
 let mqttBridge = null;
-let lists = null; // shopping lists mirrored from Home Assistant (when settings.shopping.homeAssistantLists is on)
 function broadcast(msg) { for (const f of live.values()) for (const res of f.streams) res.write('data: ' + JSON.stringify(msg) + '\n\n'); }
 
 function isOnline(f) { return f.streams.size > 0 || Date.now() - f.seen < ONLINE_MS; }
@@ -245,8 +238,13 @@ async function api(req, res, url) {
   if (p === '/notes' && m === 'POST') return reply(putNote(await readBody(req)));
   if ((r = /^\/notes\/([a-z0-9]{6,40})$/.exec(p)) && m === 'DELETE') return reply(clearNote(r[1], false));
   if ((r = /^\/notes\/([a-z0-9]{6,40})\/restore$/.exec(p)) && m === 'POST') return reply(clearNote(r[1], true));
-  if (p === '/groceries' && m === 'POST') return reply(lists ? lists.put(await readBody(req)) : putGrocery(await readBody(req)));
-  if (p === '/groceries/clear' && m === 'POST') { const b = await readBody(req); return reply(lists ? lists.clear(Array.isArray(b.ids) ? b.ids.filter((x) => typeof x === 'string').slice(0, 200) : [], b.cleared === false) : clearGroceries(b)); }
+  if (p === '/groceries' && m === 'POST') return reply(lists.put(await readBody(req)));
+  if (p === '/groceries/clear' && m === 'POST') { const b = await readBody(req); return reply(lists.clear(Array.isArray(b.ids) ? b.ids.filter((x) => typeof x === 'string').slice(0, 200) : [], b.cleared === false)); }
+  if (p === '/shops' && m === 'POST') return reply(lists.addShop((await readBody(req)).name));
+  if ((r = /^\/shops\/([a-z0-9_]{1,30})$/.exec(p))) {
+    if (m === 'PATCH') return reply(lists.renameShop(r[1], (await readBody(req)).name));
+    if (m === 'DELETE') return reply(lists.deleteShop(r[1]));
+  }
   if (p === '/photos' && m === 'POST') return bad(res, 'Photos are added with importer.py on the server, not from the page', 501);
   if ((r = /^\/photos\/([0-9a-f]{16})$/.exec(p))) {
     if (m === 'GET') return servePhoto(req, res, r[1], url.searchParams.has('b') ? 'bg' : url.searchParams.has('s') ? 'small' : 'full');
@@ -293,11 +291,7 @@ http.createServer(async (req, res) => {
 }).listen(PORT, '0.0.0.0', () => {
   console.log('Home HQ listening on :' + PORT + ' (' + BASE + ')');
   mqttBridge = startMqtt(SECRETS, (id, cmd) => sendToFrame(id, cmd));
-  if (mqttBridge && SETTINGS.shopping && SETTINGS.shopping.homeAssistantLists) {
-    lists = createLists({ stores, catalog, mqtt: mqttBridge, db, onChange: () => broadcast({ cmd: 'refresh' }) });
-    lists.start();
-    console.log('shopping: lists from Home Assistant (' + stores.map((x) => x.id).join(', ') + ')');
-  }
+  if (mqttBridge) { lists.start(); console.log('shopping: shops with a Home Assistant list (todo.shopping_<id>) are mirrored over MQTT; the rest stay local'); }
   if (mqttBridge) mqttBridge.onReady = () => {
     // Frames seen before this start: tell Home Assistant about them (offline until they check in again).
     for (const r of listFrames()) { const f = liveFrame(r.id); if (!f.row) { f.row = r; f.seen = r.seen; f.state = { screen: true, mode: 'day', rssi: r.rssi, version: r.version, kiosk: r.kiosk, model: r.model, android: r.android, name: r.name, slideshow: { layout: 'cover', interval: 14, details: true, weather: true } }; } publishFrame(f); }

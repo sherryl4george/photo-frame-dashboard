@@ -1,54 +1,56 @@
 # Shopping lists in Home Assistant
 
-Home Assistant holds the lists (one per shop). The frame mirrors them over MQTT. Two automations do the work,
-and they can only touch the four lists named below: nothing else in Home Assistant is reachable from here.
+The shops can each be backed by a Home Assistant to-do list. The frame and the phones mirror them over MQTT, with
+Home Assistant as the master (voice, the Home Assistant app and automations all work on the same lists). Two
+automations do the work. A shop **without** a Home Assistant list simply keeps its items on the server, so nothing
+has to be set up for a new shop to work; create the list later and the items move across by themselves.
 
-## 1. Create the four lists
+## 1. Create a to-do list per shop
 
-**Settings → Devices & services → Add integration → "Local To-do"**, once per shop. Use these exact names so the
-entity ids come out as shown (check them under Settings → Entities):
+**Settings → Devices & services → Add integration → "Local To-do"**, once per shop. Name each one
+**`Shopping <shop name>`** with no punctuation. The entity id then comes out as `todo.shopping_<shop id>`
+(check under Settings → Entities), and the automations find every list that starts with `todo.shopping_`.
 
-| Name to type | Entity id | Shows on the frame as |
+| Name to type | Entity id | Shop on the frame and phones |
 | --- | --- | --- |
-| Costco | `todo.costco` | Costco |
-| Safeway | `todo.safeway` | Safeway |
-| Trader Joes | `todo.trader_joes` | Trader Joe's |
-| Other | `todo.other` | Other |
+| Shopping Costco | `todo.shopping_costco` | Costco |
+| Shopping Safeway | `todo.shopping_safeway` | Safeway |
+| Shopping Trader Joes | `todo.shopping_trader_joes` | Trader Joe's |
+| Shopping Other | `todo.shopping_other` | Other |
 
-(No apostrophe in the Home Assistant name: it would change the entity id. The frame's name is set in its own settings.)
+**A new shop later:** add it on the phone page (the ⋮ menu → Manage shops). It works at once. When you want it in
+Home Assistant too, create a list named `Shopping <the shop's name>` (the sheet tells you the exact name and entity
+id). Its id is the shop's name in lower case with punctuation removed and spaces turned into `_`
+(Whole Foods → `whole_foods`, Joe's Market → `joes_market`). No automation needs editing.
 
-## 2. Add the two automations
+## 2. Add the two automations (once)
 
 **Settings → Automations & scenes → Create automation → ⋮ → Edit in YAML**, paste, save. Do this twice.
-If you used different list names, change the four entity ids in both.
 
 ### A. Publish the lists (Home Assistant → frame)
 
 ```yaml
 alias: Shopping lists to the frame
-description: Publishes each shop's to-do list over MQTT when it changes, every 5 minutes, at startup and on request.
+description: Publishes every "Shopping ..." to-do list over MQTT on change, every 30 seconds, at startup and on request.
 mode: queued
 max: 10
 triggers:
   - trigger: state
     entity_id:
-      - todo.costco
-      - todo.safeway
-      - todo.trader_joes
-      - todo.other
+      - todo.shopping_costco
+      - todo.shopping_safeway
+      - todo.shopping_trader_joes
+      - todo.shopping_other
   - trigger: homeassistant
     event: start
   - trigger: time_pattern
-    minutes: "/5"
+    seconds: "/30"
   - trigger: mqtt
     topic: photoframe/lists/refresh
 actions:
   - repeat:
-      for_each:
-        - todo.costco
-        - todo.safeway
-        - todo.trader_joes
-        - todo.other
+      for_each: >-
+        {{ states.todo | map(attribute='entity_id') | select('match', 'todo[.]shopping_') | list }}
       sequence:
         - action: todo.get_items
           target:
@@ -60,16 +62,19 @@ actions:
           response_variable: got
         - action: mqtt.publish
           data:
-            topic: "photoframe/lists/{{ repeat.item.split('.')[1] }}/items"
+            topic: "photoframe/lists/{{ repeat.item.replace('todo.shopping_', '') }}/items"
             retain: true
             payload: "{{ {'items': got[repeat.item]['items']} | tojson }}"
 ```
+
+The four `state` triggers make those shops update at once. A shop added later is picked up within 30 seconds
+by the timer; add its entity to that list only if you want it instant too.
 
 ### B. Carry out the frame's changes (frame → Home Assistant)
 
 ```yaml
 alias: Shopping lists from the frame
-description: Adds, ticks, renames and removes items on the four shop lists when the frame asks over MQTT.
+description: Adds, ticks, renames and removes items on the "Shopping ..." lists when the frame or a phone asks over MQTT.
 mode: queued
 max: 20
 triggers:
@@ -78,11 +83,13 @@ triggers:
 conditions:
   - condition: template
     value_template: >-
-      {{ trigger.topic.split('/')[2] in ['costco', 'safeway', 'trader_joes', 'other']
+      {% set id = trigger.topic.split('/')[2] %}
+      {{ id | regex_match('^[a-z0-9_]+$')
+         and ('todo.shopping_' ~ id) in (states.todo | map(attribute='entity_id') | list)
          and trigger.payload_json is mapping }}
 actions:
   - variables:
-      entity: "todo.{{ trigger.topic.split('/')[2] }}"
+      entity: "todo.shopping_{{ trigger.topic.split('/')[2] }}"
       c: "{{ trigger.payload_json }}"
   - choose:
       - conditions: "{{ c.op == 'add' and (c.item | string | length) > 0 }}"
@@ -121,18 +128,15 @@ actions:
       payload: refresh
 ```
 
-These use the current automation syntax (`triggers:` / `actions:` / `action:`), from Home Assistant 2024.10 on.
+Both use the current automation syntax (`triggers:` / `actions:` / `action:`), from Home Assistant 2024.10 on.
+The only things they can touch are to-do lists whose entity id starts with `todo.shopping_`.
 
-## 3. Turn it on for the frame
+## What the frame and phones can and cannot do
 
-On the server, in `config/settings.json`, set `"homeAssistantLists": true` under `shopping` and restart
-`photoframe.service`. Until then the Shopping tab uses its own local list.
-
-## What the frame can and cannot do
-
-- Add, tick, rename and clear items; move one to another shop. Each change reaches Home Assistant in about a second.
+- Add, tick, rename, change quantity, note, aisle and shop; clear with Undo; add and manage shops. A change to a
+  Home Assistant shop reaches Home Assistant in about a second.
 - Aisle, quantity and note are kept on the server only (Home Assistant's lists hold just a name and a done flag).
-  An item added in the Home Assistant app gets its aisle guessed from the usual-items list.
-- If Home Assistant or MQTT is down, the frame shows the last list it saw and refuses changes instead of keeping
-  its own copy, so the two never disagree.
+  An item added in the Home Assistant app gets its aisle from what was used before, else guessed from the usual items.
+- If Home Assistant or MQTT is down, a Home Assistant shop shows its last list and the phone page keeps changes in
+  a queue until it is back. A local shop is not affected.
 - Voice (Assist) and the Home Assistant app work on the same lists. Whether Assist accepts a list name depends on your version.
