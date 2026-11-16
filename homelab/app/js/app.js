@@ -81,7 +81,7 @@
   // idle. A mode picked in the display controls (manual) stays until the next tap.
   App.scheduledOff = false;
   App.restMode = function () { return App.isScheduledOff() ? 'off' : App.isNight() ? 'night' : 'ambient'; };
-  // The whole UI is dimmed and amber-tinted (css: data-night) for as long as it's night, whatever
+  // (The page-wide night tint was removed; only the dim night clock is tinted. data-night is still set but no CSS uses it.) Original note: whatever
   // the mode, so a tap in the night doesn't flash a bright screen. Outside the hours it's normal.
   App.applyNight = function () { var st = $('#stage'); if (st) st.dataset.night = App.isNight() ? '1' : '0'; };
   App.rest = function () {

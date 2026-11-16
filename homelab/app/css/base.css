@@ -332,13 +332,9 @@ button.card:active, .h-hero:active, .h-photo:active { transform: scale(.985); }
 .demo-frame b { color: var(--ink); font-weight: 800; }
 .demo-frame.is-quiet, .demo-frame.is-quiet b { color: var(--alert); }
 
-/* ---------------------------------------------------------------- night: the whole dashboard muted */
-/* Whenever the frame's night hours are on (display controls), tapped awake or not. */
-.stage[data-night="1"] > .rail,
-.stage[data-night="1"] > .views {
-  filter: invert(1) hue-rotate(180deg) grayscale(1) sepia(1) saturate(5) hue-rotate(-38deg) brightness(.62);
-}
-.stage[data-night="1"] { background: #000; }
+/* ---------------------------------------------------------------- night
+   The red tint is only on the dim night clock (.night, in views/ambient.css). The pages themselves are not tinted:
+   the original design also filtered the whole dashboard (rail and every view) between Dim and Bright, which is removed. */
 
 /* ---------------------------------------------------------------- diagnostics overlay (?diag) */
 .diag {
