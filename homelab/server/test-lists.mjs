@@ -85,4 +85,8 @@ assert.equal(L.categorize('oat creamer'), 'Dairy & Eggs'); assert.equal(L.catego
 L.onItems('costco', items([['u1', 'Green bananas', 'completed'], ['h1', 'Sourdough']]));
 assert.ok(L.recent(200).some((x) => x.name === 'Sourdough')); ok('items added in Home Assistant become suggestions too');
 assert.equal(L.recent(5).length, 5); ok('the recent list is limited');
+// --- stale ids
+up = true; sent.length = 0;
+assert.equal(L.put({ id: 'costco:gone123', name: 'Ghost', store: 'costco' })[0], 404); assert.equal(cmds().length, 0); assert.ok(!L.groceries().some((x) => x.name === 'Ghost')); ok('a tap on an item that no longer exists is refused, not re-created');
+assert.equal(L.put({ id: 'brandnewid', name: 'Fresh', store: 'costco' })[0], 200); ok('a genuinely new item (client id) is still added');
 console.log('\nall ' + n + ' passed');

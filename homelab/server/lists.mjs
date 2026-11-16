@@ -158,6 +158,7 @@ export function createLists({ db, mqtt, catalog, seedShops = [], onChange = () =
     const store = ids.includes(g.store) ? g.store : ids[0];
     const m = { cat: clip(g.cat, 40) || categorize(name), qty: Math.max(1, Math.min(99, parseInt(g.qty, 10) || 1)), note: clip(g.note, 120) };
     const hit = findHa(id), loc = hit ? null : localRow(id), toHa = isHa(store);
+    if (!hit && !loc && SPLIT.test(id) && !pending.some((x) => x.id === id)) return [404, { error: 'That item has changed since this page loaded. Refreshing…' }]; // a stale tap must not bring a deleted item back
     if ((hit || toHa) && !ready()) return haDown();
 
     if (hit) {

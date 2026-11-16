@@ -173,6 +173,7 @@ function render() {
     return '<button class="tab' + (S.store === id ? ' on' : '') + '" data-tab="' + esc(id) + '">' + esc(label) + (n ? '<b>' + n + '</b>' : '') + '</button>';
   }).join('') + '<button class="tab plus" data-act="shops" aria-label="Add a shop">+ Shop</button>';
   const todo = items.filter((g) => !g.done), done = items.filter((g) => g.done);
+  const showShop = S.store === 'all' && S.stores.length > 1; // label ticked items with their shop when looking at All
   let html = '';
   if (S.store === 'all') { // everything to buy, shop by shop
     S.stores.forEach((s) => {
@@ -264,18 +265,27 @@ $('#layoutbtn').addEventListener('click', () => setLayout(S.layout === 'tiles' ?
 $('#searchbtn').addEventListener('click', () => { const s = $('#search'); s.hidden = !s.hidden; if (s.hidden) { s.value = ''; S.query = ''; render(); } else s.focus(); });
 $('#search').addEventListener('input', (e) => { S.query = e.target.value; render(); });
 
-// tiles: tap ticks, a long press edits; scrolling cancels both
-let press = null;
+// Tiles: a tap ticks, a long press edits. The tap is the browser's own `click`, which a phone only sends for a real tap
+// (a scroll, a drag or a long press does not produce one). The long press is a timer started on touch; when it fires it
+// opens the editor and the click that may follow the lift is ignored.
 const list = $('#list');
+let hold = null, ignoreClick = false;
+const endHold = () => { if (hold) { clearTimeout(hold.timer); hold = null; } };
 list.addEventListener('pointerdown', (e) => {
   const el = e.target.closest('.tile');
+  endHold();
   if (!el || e.target.closest('.tmore')) return;
-  press = { id: el.dataset.id, x: e.clientX, y: e.clientY, long: false };
-  press.timer = setTimeout(() => { if (press) { press.long = true; if (navigator.vibrate) navigator.vibrate(15); openEdit(press.id); } }, 480);
+  hold = { x: e.clientX, y: e.clientY, timer: setTimeout(() => { const id = el.dataset.id; hold = null; ignoreClick = true; setTimeout(() => { ignoreClick = false; }, 700); if (navigator.vibrate) navigator.vibrate(15); openEdit(id); }, 520) };
 });
-list.addEventListener('pointermove', (e) => { if (press && Math.hypot(e.clientX - press.x, e.clientY - press.y) > 12) { clearTimeout(press.timer); press = null; } });
-list.addEventListener('pointerup', () => { if (!press) return; clearTimeout(press.timer); const p = press; press = null; if (!p.long) tick(p.id); });
-list.addEventListener('pointercancel', () => { if (press) { clearTimeout(press.timer); press = null; } });
+list.addEventListener('pointermove', (e) => { if (hold && Math.hypot(e.clientX - hold.x, e.clientY - hold.y) > 14) endHold(); });
+list.addEventListener('pointerup', endHold);
+list.addEventListener('pointercancel', endHold);
+list.addEventListener('click', (e) => {
+  const el = e.target.closest('.tile');
+  if (!el || e.target.closest('.tmore')) return;
+  if (ignoreClick) { ignoreClick = false; return; }
+  tick(el.dataset.id);
+});
 list.addEventListener('contextmenu', (e) => e.preventDefault());
 
 // ------------------------------------------------------------------ keep the screen on while shopping
