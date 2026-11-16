@@ -12,6 +12,7 @@ import android.content.pm.PackageManager;
 import android.content.pm.ResolveInfo;
 import android.graphics.Bitmap;
 import android.graphics.Color;
+import android.graphics.Rect;
 import android.graphics.drawable.GradientDrawable;
 import android.net.ConnectivityManager;
 import android.net.NetworkInfo;
@@ -342,6 +343,17 @@ public class MainActivity extends Activity {
     root.addView(menuButton, menuPosition);
     applyMenuButtonFlag(getIntent());
     setContentView(root);
+    // A fullscreen window does not resize for the on-screen keyboard, so the keyboard would sit on top of the page and
+    // cover a text box at the bottom. Watch the visible area and shrink the page's space by the keyboard's height.
+    final LinearLayout pageColumn = column;
+    root.getViewTreeObserver().addOnGlobalLayoutListener(() -> {
+      Rect visible = new Rect();
+      root.getWindowVisibleDisplayFrame(visible);
+      int screen = root.getRootView().getHeight();
+      int keyboard = screen - visible.bottom;
+      int pad = keyboard > screen * 0.15 ? keyboard : 0; // anything shorter is a bar, not a keyboard
+      if (pageColumn.getPaddingBottom() != pad) pageColumn.setPadding(0, 0, 0, pad);
+    });
 
     String url = urlFrom(getIntent());
     load(url != null ? url : savedUrl());

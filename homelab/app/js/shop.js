@@ -184,6 +184,7 @@ function render() {
   if (done.length) html += '<div class="donehead"><div class="aisle">In the cart · ' + done.length + '</div><button class="clear" data-act="clear">Clear</button></div><div class="grid">' + done.map((g) => tile(g, showShop, waiting)).join('') + '</div>';
   $('#addin').placeholder = S.store === 'all' ? 'Add an item (I’ll ask which shop)' : 'Add to ' + storeName(S.store) + '  (Milk, 2 liters)';
   const list = $('#list'); list.innerHTML = html; list.classList.toggle('rows', S.layout === 'rows');
+  $('#layoutbtn').textContent = S.layout === 'tiles' ? '☰' : '▦'; // shows what a tap switches to
   const have = new Set(S.groceries.filter((g) => !g.done && (S.store === 'all' || g.store === S.store)).map((g) => plain(g.name)));
   const pool = S.recent.map((r) => r.name).concat(S.usuals);
   const seen = new Set();
@@ -258,6 +259,8 @@ document.addEventListener('change', (e) => { const el = e.target; if (el.dataset
 $('#addform').addEventListener('submit', (e) => { e.preventDefault(); const i = $('#addin'); addItem(i.value); i.value = ''; $('#suggest').hidden = true; });
 $('#addin').addEventListener('input', (e) => showSuggest(e.target.value));
 $('#menubtn').addEventListener('click', openMenu);
+const setLayout = (v) => { S.layout = v; keep(K.layout, v); render(); };
+$('#layoutbtn').addEventListener('click', () => setLayout(S.layout === 'tiles' ? 'rows' : 'tiles'));
 $('#searchbtn').addEventListener('click', () => { const s = $('#search'); s.hidden = !s.hidden; if (s.hidden) { s.value = ''; S.query = ''; render(); } else s.focus(); });
 $('#search').addEventListener('input', (e) => { S.query = e.target.value; render(); });
 

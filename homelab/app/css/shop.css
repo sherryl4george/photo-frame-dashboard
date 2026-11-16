@@ -80,4 +80,3 @@ button { font: inherit; color: inherit; background: none; border: 0; padding: 0;
 /* inside the wall display's Shopping tab */
 body.embed { padding-bottom: 150px; }
 body.embed .top { padding-top: 8px; }
-body.embed #menubtn { display: none; }
