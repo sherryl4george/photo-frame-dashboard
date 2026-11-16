@@ -1,0 +1,96 @@
+# Home Assistant automations.yaml entries for the shopping lists (append to your automations.yaml).
+# Needs Home Assistant 2024.10 or newer (triggers: / conditions: / actions: / action: syntax).
+# The ids below must be unique in your file; change them if they clash.
+
+- id: shopping_lists_to_frame
+  alias: Shopping lists to the frame
+  description: Publishes every "Shopping ..." to-do list over MQTT when any of them changes, every 30 seconds, at startup and on request.
+  mode: queued
+  max: 10
+  triggers:
+    - trigger: event
+      event_type: state_changed
+    - trigger: homeassistant
+      event: start
+    - trigger: time_pattern
+      seconds: "/30"
+    - trigger: mqtt
+      topic: photoframe/lists/refresh
+  conditions:
+    - condition: template
+      value_template: >-
+        {{ trigger.platform != 'event'
+           or trigger.event.data.entity_id.startswith('todo.shopping_') }}
+  actions:
+    - repeat:
+        for_each: >-
+          {{ states.todo | map(attribute='entity_id') | select('match', 'todo[.]shopping_') | list }}
+        sequence:
+          - action: todo.get_items
+            target:
+              entity_id: "{{ repeat.item }}"
+            data:
+              status:
+                - needs_action
+                - completed
+            response_variable: got
+          - action: mqtt.publish
+            data:
+              topic: "photoframe/lists/{{ repeat.item.replace('todo.shopping_', '') }}/items"
+              retain: true
+              payload: "{{ {'items': got[repeat.item]['items']} | tojson }}"
+
+- id: shopping_lists_from_frame
+  alias: Shopping lists from the frame
+  description: Adds, ticks, renames and removes items on the "Shopping ..." lists when the frame or a phone asks over MQTT.
+  mode: queued
+  max: 20
+  triggers:
+    - trigger: mqtt
+      topic: photoframe/lists/+/cmd
+  conditions:
+    - condition: template
+      value_template: >-
+        {% set id = trigger.topic.split('/')[2] %}
+        {{ id | regex_match('^[a-z0-9_]+$')
+           and ('todo.shopping_' ~ id) in (states.todo | map(attribute='entity_id') | list)
+           and trigger.payload_json is mapping }}
+  actions:
+    - variables:
+        entity: "todo.shopping_{{ trigger.topic.split('/')[2] }}"
+        c: "{{ trigger.payload_json }}"
+    - choose:
+        - conditions: "{{ c.op == 'add' and (c.item | string | length) > 0 }}"
+          sequence:
+            - action: todo.add_item
+              target:
+                entity_id: "{{ entity }}"
+              data:
+                item: "{{ c.item }}"
+        - conditions: "{{ c.op == 'done' and c.uid is defined }}"
+          sequence:
+            - action: todo.update_item
+              target:
+                entity_id: "{{ entity }}"
+              data:
+                item: "{{ c.uid }}"
+                status: "{{ 'completed' if c.done else 'needs_action' }}"
+        - conditions: "{{ c.op == 'rename' and c.uid is defined and (c.item | string | length) > 0 }}"
+          sequence:
+            - action: todo.update_item
+              target:
+                entity_id: "{{ entity }}"
+              data:
+                item: "{{ c.uid }}"
+                rename: "{{ c.item }}"
+        - conditions: "{{ c.op == 'remove' and c.uid is defined }}"
+          sequence:
+            - action: todo.remove_item
+              target:
+                entity_id: "{{ entity }}"
+              data:
+                item: "{{ c.uid }}"
+    - action: mqtt.publish
+      data:
+        topic: photoframe/lists/refresh
+        payload: refresh
