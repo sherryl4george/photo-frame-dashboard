@@ -37,7 +37,7 @@ export function createLists({ db, mqtt, catalog, seedShops = [], onChange = () =
   function dropMeta(key) { meta.delete(key); db.prepare('DELETE FROM list_meta WHERE key = ?').run(key); }
 
   // ---------------------------------------------------------------- shops
-  const shopRows = () => db.prepare('SELECT id, name FROM shops ORDER BY (id = 'other'), position, rowid').all();
+  const shopRows = () => db.prepare(`SELECT id, name FROM shops ORDER BY (id = 'other'), position, rowid`).all();
   if (!shopRows().length) seedShops.forEach((s, i) => db.prepare('INSERT OR IGNORE INTO shops (id, name, position) VALUES (?, ?, ?)').run(s.id, s.name, i));
   const shopIds = () => shopRows().map((s) => s.id);
   function addShop(name) {

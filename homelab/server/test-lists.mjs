@@ -72,7 +72,7 @@ up = true;
 assert.deepEqual(L.addShop("Whole Foods"), [200, { ok: true, id: 'whole_foods', name: 'Whole Foods', haName: 'Shopping Whole Foods', haEntity: 'todo.shopping_whole_foods' }]); ok('adding a shop gives the Home Assistant list name to create');
 const tj = L.addShop("Joe's Market"); assert.equal(tj[1].id, 'joes_market'); assert.equal(tj[1].haName, 'Shopping Joes Market'); ok('apostrophes are dropped from ids and list names');
 assert.equal(L.addShop('whole  foods')[0], 409); assert.equal(L.addShop('  ')[0], 400); assert.equal(L.addShop('!!!')[0], 400); ok('duplicates and empty names are refused');
-assert.deepEqual(L.shops().map((s) => s.id).slice(-2), ['whole_foods', 'joes_market']); ok('new shops go at the end');
+assert.deepEqual(L.shops().map((s) => s.id).slice(-3), ['whole_foods', 'joes_market', 'other']); ok('new shops go at the end, but Other is always last');
 L.put({ id: 'w1', name: 'Kale', store: 'whole_foods' }); assert.deepEqual(names('whole_foods'), ['Kale']); ok('a new shop works at once, locally');
 assert.equal(L.deleteShop('whole_foods')[0], 409); L.clear(['w1'], false); assert.equal(L.deleteShop('whole_foods')[0], 200); assert.ok(!L.shops().some((s) => s.id === 'whole_foods')); ok('a shop with items cannot be deleted; an empty one can');
 assert.equal(L.renameShop('joes_market', "Joe's Market (Bellevue)")[0], 200); assert.equal(L.shops().find((s) => s.id === 'joes_market').name, "Joe's Market (Bellevue)"); assert.equal(L.renameShop('nope', 'x')[0], 404); ok('renaming a shop keeps its id');
