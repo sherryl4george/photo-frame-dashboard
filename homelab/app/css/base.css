@@ -297,15 +297,19 @@ button.card:active, .h-hero:active, .h-photo:active { transform: scale(.985); }
 .set-chev { font-size: 24px; color: var(--mute); line-height: 1; }
 .set-note { margin: 0; font-size: 14px; color: var(--mute); }
 .set-err { color: var(--alert); padding-bottom: 8px; }
-.set-timeblock { border-bottom: 1px solid var(--line); }
-.set-timeblock > .set-row { border-bottom: 0; width: 100%; text-align: left; }
-.set-timed { display: flex; align-items: center; gap: 28px; padding: 4px 0 16px; }
-.set-tg { display: flex; align-items: center; gap: 6px; }
-.set-tg button { width: 44px; height: 44px; border-radius: 50%; background: var(--paper-2); font-size: 24px; font-weight: 600; line-height: 1; }
-.set-tg .num { min-width: 52px; text-align: center; font-size: 34px; line-height: 1; }
-.set-tg em { font-style: normal; font-size: 13px; color: var(--mute); margin-left: 4px; }
-.set-ap { padding: 3px; }
-.set-ap button { min-height: 40px; padding: 0 16px; font-size: 15px; }
+.set-pop { position: absolute; top: 0; right: 0; bottom: 0; left: 0; z-index: 5; display: grid; place-items: center; background: rgba(17, 17, 17, .45); }
+.set-popcard { background: var(--card); border-radius: 22px; padding: 22px 28px 22px; width: 400px; box-shadow: 0 24px 70px rgba(0, 0, 0, .4); }
+.set-popcard h3 { margin: 0 0 6px; font-family: var(--serif); font-weight: 400; font-size: 30px; text-align: center; }
+.set-wheels { position: relative; display: flex; justify-content: center; align-items: flex-start; gap: 4px; height: 176px; margin: 4px 0 16px; }
+.set-wheels::before { content: ''; position: absolute; left: 0; right: 0; top: 66px; height: 44px; border-radius: 12px; background: var(--paper-2); }
+.set-wheel { position: relative; width: 96px; height: 176px; overflow-y: scroll; scroll-snap-type: y mandatory; scrollbar-width: none; padding: 66px 0; touch-action: pan-y;
+  -webkit-mask-image: linear-gradient(transparent, #000 30%, #000 70%, transparent); mask-image: linear-gradient(transparent, #000 30%, #000 70%, transparent); }
+.set-wheel::-webkit-scrollbar { display: none; }
+.set-wheel div { height: 44px; line-height: 44px; text-align: center; font-size: 30px; font-weight: 500; scroll-snap-align: center; font-variant-numeric: tabular-nums; }
+.set-wheel--ap div { font-size: 24px; font-weight: 700; }
+.set-colon { position: relative; line-height: 176px; font-size: 30px; font-weight: 700; }
+.set-popbtns { display: flex; gap: 10px; } .set-popbtns .set-btn { flex: 1; }
+.set-time { width: 100%; text-align: left; }
 .set-btn { min-height: 44px; padding: 0 20px; border-radius: 12px; background: var(--ink); color: var(--paper); font-size: 16px; font-weight: 700; }
 .set-btn--ghost { background: var(--paper-2); color: var(--ink); }
 .set-select { min-height: 44px; border-radius: 10px; border: 1px solid var(--line); background: var(--card); padding: 0 10px; font: inherit; font-size: 16px; max-width: 260px; }

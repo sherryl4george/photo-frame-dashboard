@@ -1,0 +1,97 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Time picker options</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@62..125,100..900&family=Instrument+Serif:ital@0;1&display=swap">
+<style>
+  :root { --paper:#F2EEE6; --paper2:#E8E2D5; --card:#FBF9F4; --ink:#111; --mute:#7A756B; --line:#D6CFC0; --accent:#111; }
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; user-select: none; -webkit-user-select: none; }
+  body { margin: 0; background: var(--paper); color: var(--ink); font-family: 'Archivo', system-ui, sans-serif; padding: 28px; }
+  h1 { font-family: 'Instrument Serif', serif; font-weight: 400; font-size: 42px; margin: 0 0 4px; }
+  p.note { margin: 0 0 22px; color: var(--mute); font-size: 15px; }
+  .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(420px, 1fr)); gap: 22px; }
+  .opt { background: var(--card); border: 1px solid var(--line); border-radius: 18px; padding: 18px 20px 22px; }
+  .opt h2 { margin: 0 0 2px; font-size: 18px; } .opt .sub { color: var(--mute); font-size: 14px; margin-bottom: 14px; }
+  .read { font-size: 15px; color: var(--mute); margin-top: 12px; } .read b { color: var(--ink); font-size: 20px; font-variant-numeric: tabular-nums; }
+  button { font: inherit; color: inherit; background: none; border: 0; cursor: pointer; }
+  .num { font-stretch: 62%; font-weight: 800; font-variant-numeric: tabular-nums; }
+  /* 1 wheels */
+  .wheels { position: relative; display: flex; justify-content: center; gap: 10px; height: 176px; }
+  .wheels::before { content: ''; position: absolute; left: 8%; right: 8%; top: 66px; height: 44px; border-radius: 12px; background: var(--paper2); z-index: 0; }
+  .wheel { position: relative; z-index: 1; width: 92px; height: 176px; overflow-y: scroll; scroll-snap-type: y mandatory; scrollbar-width: none; padding: 66px 0; touch-action: pan-y;
+    -webkit-mask-image: linear-gradient(transparent, #000 30%, #000 70%, transparent); mask-image: linear-gradient(transparent, #000 30%, #000 70%, transparent); }
+  .wheel::-webkit-scrollbar { display: none; }
+  .wheel div { height: 44px; line-height: 44px; text-align: center; font-size: 28px; scroll-snap-align: center; font-variant-numeric: tabular-nums; }
+  .wheel.ap div { font-size: 24px; font-weight: 700; }
+  /* 2 keypad */
+  .kp-disp { text-align: center; font-size: 56px; line-height: 1; padding: 6px 0 14px; } .kp-disp small { font-size: 22px; font-weight: 700; margin-left: 8px; font-stretch: 100%; }
+  .kp { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; max-width: 330px; margin: 0 auto; }
+  .kp button { height: 54px; border-radius: 14px; background: var(--paper2); font-size: 24px; font-weight: 600; }
+  .kp button:active { background: var(--line); } .kp .ap { background: var(--ink); color: var(--paper); font-size: 18px; font-weight: 800; }
+  /* 3 timeline */
+  .tl { position: relative; height: 96px; margin: 6px 14px 0; touch-action: none; }
+  .tl-bar { position: absolute; left: 0; right: 0; top: 34px; height: 22px; border-radius: 11px; background: #fff; border: 1px solid var(--line); overflow: hidden; }
+  .tl-night { position: absolute; top: 0; bottom: 0; background: var(--ink); opacity: .85; }
+  .tl-tick { position: absolute; top: 62px; font-size: 12px; color: var(--mute); transform: translateX(-50%); }
+  .tl-h { position: absolute; top: 20px; width: 44px; height: 50px; margin-left: -22px; display: grid; place-items: center; touch-action: none; }
+  .tl-h i { width: 26px; height: 50px; border-radius: 10px; background: var(--paper); border: 3px solid var(--ink); box-shadow: 0 2px 6px rgba(0,0,0,.25); }
+  .tl-lab { position: absolute; top: -2px; transform: translateX(-50%); font-size: 13px; font-weight: 700; white-space: nowrap; background: var(--card); padding: 1px 6px; border-radius: 6px; }
+  /* 4 quick picks */
+  .chips { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 14px; }
+  .chip { min-height: 44px; padding: 0 16px; border-radius: 999px; background: var(--paper2); font-weight: 700; font-size: 16px; } .chip.on { background: var(--ink); color: var(--paper); }
+  .nudge { display: flex; align-items: center; justify-content: center; gap: 14px; }
+  .nudge button { min-width: 76px; height: 50px; border-radius: 14px; background: var(--paper2); font-size: 18px; font-weight: 700; }
+  .nudge .big { font-size: 46px; min-width: 150px; text-align: center; }
+</style></head><body>
+<h1>Time picker options</h1>
+<p class="note">Each one is live: try it. All four set "Dim from" (start at 9:00 PM). Tell me which feels best, or which pieces to combine.</p>
+<div class="grid">
+  <div class="opt"><h2>1 · Scroll wheels</h2><div class="sub">Flick each column; it snaps to the middle. Minutes in steps of 5.</div><div class="wheels" id="w"></div><div class="read">Dim from <b id="r1"></b></div></div>
+  <div class="opt"><h2>2 · Keypad</h2><div class="sub">Type the digits: 9 3 0 gives 9:30. Backspace to correct.</div><div class="kp-disp num" id="kd"></div><div class="kp" id="kp"></div><div class="read">Dim from <b id="r2"></b></div></div>
+  <div class="opt"><h2>3 · Day timeline</h2><div class="sub">Drag the handles. The dark band is the night, so you see the whole schedule at once. Steps of 15 minutes.</div><div class="tl" id="tl"></div><div class="read">Night <b id="r3"></b></div></div>
+  <div class="opt"><h2>4 · Quick picks</h2><div class="sub">Tap a usual time, then nudge by 15 minutes.</div><div class="chips" id="ch"></div><div class="nudge"><button id="m15">−15</button><div class="big num" id="nb"></div><button id="p15">+15</button></div><div class="read">Dim from <b id="r4"></b></div></div>
+</div>
+<script>
+function lab(min){ var h=Math.floor(min/60)%24, m=min%60; return (h%12||12)+':'+('0'+m).slice(-2)+' '+(h<12?'AM':'PM'); }
+// ---- 1 wheels
+(function(){
+  var t=21*60, el=document.getElementById('w'), H=[],M=[],A=['AM','PM'], rows=44;
+  for(var i=1;i<=12;i++)H.push(i); for(var j=0;j<60;j+=5)M.push(('0'+j).slice(-2));
+  function col(list,cls,idx){ var d=document.createElement('div'); d.className='wheel '+(cls||''); d.innerHTML=list.map(function(x){return '<div>'+x+'</div>'}).join(''); el.appendChild(d); d.scrollTop=idx*rows; var tm; d.addEventListener('scroll',function(){clearTimeout(tm);tm=setTimeout(upd,90)}); return d; }
+  var h=(t/60)%12||12, ch=col(H,'',h-1), cm=col(M,'',Math.round((t%60)/5)), ca=col(A,'ap',t>=720?1:0);
+  function pick(c){return Math.max(0,Math.round(c.scrollTop/rows))}
+  function upd(){ var hh=Math.min(11,pick(ch))+1, mm=Math.min(11,pick(cm))*5, pm=Math.min(1,pick(ca)); t=((hh%12)+(pm?12:0))*60+mm; document.getElementById('r1').textContent=lab(t); }
+  upd();
+})();
+// ---- 2 keypad
+(function(){
+  var digits='930', pm=true, kp=document.getElementById('kp');
+  function val(){ var d=digits.padStart(4,'0'); var h=+d.slice(0,2), m=+d.slice(2); return {h:h,m:m,ok:h>=1&&h<=12&&m<60}; }
+  function show(){ var v=val(), s=(v.h||'–')+':'+('0'+v.m).slice(-2); var e=document.getElementById('kd'); e.innerHTML=s+'<small>'+(pm?'PM':'AM')+'</small>'; e.style.color=v.ok?'':'#c33';
+    document.getElementById('r2').textContent=v.ok?lab(((v.h%12)+(pm?12:0))*60+v.m):'invalid'; }
+  ['1','2','3','4','5','6','7','8','9','⌫','0','AM/PM'].forEach(function(k){ var b=document.createElement('button'); b.textContent=k; if(k==='AM/PM') b.className='ap'; b.onclick=function(){ if(k==='⌫')digits=digits.slice(0,-1); else if(k==='AM/PM')pm=!pm; else if(digits.length<4)digits+=k; show(); }; kp.appendChild(b); });
+  show();
+})();
+// ---- 3 timeline
+(function(){
+  var el=document.getElementById('tl'), A=21*60, B=6.5*60, W=0;
+  el.innerHTML='<div class="tl-bar"><div class="tl-night" id="n1"></div><div class="tl-night" id="n2"></div></div>'
+    +[0,6,12,18,24].map(function(h){return '<div class="tl-tick" style="left:'+(h/24*100)+'%">'+(h===0||h===24?'12 AM':h===12?'12 PM':(h%12)+(h<12?' AM':' PM'))+'</div>'}).join('')
+    +'<div class="tl-h" id="hA"><i></i></div><div class="tl-h" id="hB"><i></i></div><div class="tl-lab" id="lA"></div><div class="tl-lab" id="lB"></div>';
+  function pos(m){return m/1440*100+'%'}
+  function draw(){ var a=document.getElementById('n1'), b=document.getElementById('n2');
+    if(A>B){ a.style.left=pos(A); a.style.width=(1440-A)/1440*100+'%'; b.style.left='0'; b.style.width=pos(B); } else { a.style.left=pos(A); a.style.width=(B-A)/1440*100+'%'; b.style.width='0'; }
+    document.getElementById('hA').style.left=pos(A); document.getElementById('hB').style.left=pos(B);
+    var la=document.getElementById('lA'), lb=document.getElementById('lB'); la.style.left=pos(A); lb.style.left=pos(B); la.textContent=lab(A); lb.textContent=lab(B);
+    document.getElementById('r3').textContent=lab(A)+' → '+lab(B); }
+  function drag(id,set){ var h=document.getElementById(id); h.addEventListener('pointerdown',function(e){ h.setPointerCapture(e.pointerId); W=el.getBoundingClientRect(); });
+    h.addEventListener('pointermove',function(e){ if(!h.hasPointerCapture(e.pointerId))return; var r=el.getBoundingClientRect(), x=Math.max(0,Math.min(r.width,e.clientX-r.left)); set(Math.min(1425,Math.round(x/r.width*96)*15)); draw(); }); }
+  drag('hA',function(m){A=m}); drag('hB',function(m){B=m}); draw();
+})();
+// ---- 4 quick picks
+(function(){
+  var t=21*60, picks=[['6 AM',360],['7 AM',420],['8 AM',480],['9 PM',1260],['10 PM',1320],['11 PM',1380]], ch=document.getElementById('ch');
+  function show(){ document.getElementById('nb').textContent=lab(t); document.getElementById('r4').textContent=lab(t); Array.prototype.forEach.call(ch.children,function(c,i){c.classList.toggle('on',picks[i][1]===t)}); }
+  picks.forEach(function(p){ var b=document.createElement('button'); b.className='chip'; b.textContent=p[0]; b.onclick=function(){t=p[1];show()}; ch.appendChild(b); });
+  document.getElementById('m15').onclick=function(){t=(t-15+1440)%1440;show()}; document.getElementById('p15').onclick=function(){t=(t+15)%1440;show()}; show();
+})();
+</script></body></html>
