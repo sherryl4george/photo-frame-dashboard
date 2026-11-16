@@ -31,22 +31,23 @@ id). Its id is the shop's name in lower case with punctuation removed and spaces
 
 ```yaml
 alias: Shopping lists to the frame
-description: Publishes every "Shopping ..." to-do list over MQTT on change, every 30 seconds, at startup and on request.
+description: Publishes every "Shopping ..." to-do list over MQTT when any of them changes, every 30 seconds, at startup and on request.
 mode: queued
 max: 10
 triggers:
-  - trigger: state
-    entity_id:
-      - todo.shopping_costco
-      - todo.shopping_safeway
-      - todo.shopping_trader_joes
-      - todo.shopping_other
+  - trigger: event
+    event_type: state_changed
   - trigger: homeassistant
     event: start
   - trigger: time_pattern
     seconds: "/30"
   - trigger: mqtt
     topic: photoframe/lists/refresh
+conditions:
+  - condition: template
+    value_template: >-
+      {{ trigger.platform != 'event'
+         or trigger.event.data.entity_id.startswith('todo.shopping_') }}
 actions:
   - repeat:
       for_each: >-
@@ -67,8 +68,12 @@ actions:
             payload: "{{ {'items': got[repeat.item]['items']} | tojson }}"
 ```
 
-The four `state` triggers make those shops update at once. A shop added later is picked up within 30 seconds
-by the timer; add its entity to that list only if you want it instant too.
+The `state_changed` trigger reacts at once when any list whose id starts with `todo.shopping_` changes, so a shop added
+later needs no edit. (A plain `state` trigger needs every entity listed by name and has no wildcard.) The condition only
+filters that trigger; the timer, startup and refresh triggers run as before. The catch: Home Assistant checks the
+condition on every state change in the system, which is cheap but not free, and a list's state is its count of
+unfinished items, so a rename shows up on the next 30-second pass. If you would rather not use it, replace that trigger
+with a `state` trigger listing your lists and rely on the timer for any new shop.
 
 ### B. Carry out the frame's changes (frame → Home Assistant)
 
