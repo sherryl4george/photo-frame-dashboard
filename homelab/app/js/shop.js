@@ -172,20 +172,14 @@ function render() {
     const n = open.filter((g) => id === 'all' || g.store === id).length;
     return '<button class="tab' + (S.store === id ? ' on' : '') + '" data-tab="' + esc(id) + '">' + esc(label) + (n ? '<b>' + n + '</b>' : '') + '</button>';
   }).join('') + '<button class="tab plus" data-act="shops" aria-label="Add a shop">+ Shop</button>';
-  const order = (S.catOrder[S.store] || S.catOrder.all || []).filter((c) => c !== 'Other').concat(['Other']);
-  const showShop = S.store === 'all' && S.stores.length > 1;
   const todo = items.filter((g) => !g.done), done = items.filter((g) => g.done);
   let html = '';
-  const aisleOf = (g) => { const i = order.indexOf(g.cat || 'Other'); return i < 0 ? order.length - 1 : i; };
   if (S.store === 'all') { // everything to buy, shop by shop
     S.stores.forEach((s) => {
-      const mine = todo.filter((g) => g.store === s.id).sort((a, b) => aisleOf(a) - aisleOf(b));
+      const mine = todo.filter((g) => g.store === s.id);
       if (mine.length) html += '<div class="aisle shophead">' + esc(s.name) + ' · ' + mine.length + '</div><div class="grid">' + mine.map((g) => tile(g, false, waiting)).join('') + '</div>';
     });
-  } else order.forEach((cat) => {
-    const mine = todo.filter((g) => (g.cat || 'Other') === cat || (cat === 'Other' && !order.includes(g.cat)));
-    if (mine.length) html += '<div class="aisle">' + esc(cat) + '</div><div class="grid">' + mine.map((g) => tile(g, false, waiting)).join('') + '</div>';
-  });
+  } else if (todo.length) html += '<div class="grid">' + todo.map((g) => tile(g, false, waiting)).join('') + '</div>';
   if (!todo.length) html += '<div class="empty">' + (q ? 'Nothing matches.' : done.length ? 'Everything is in the cart.' : 'Nothing to buy.') + '</div>';
   if (done.length) html += '<div class="donehead"><div class="aisle">In the cart · ' + done.length + '</div><button class="clear" data-act="clear">Clear</button></div><div class="grid">' + done.map((g) => tile(g, showShop, waiting)).join('') + '</div>';
   $('#addin').placeholder = S.store === 'all' ? 'Add an item (I’ll ask which shop)' : 'Add to ' + storeName(S.store) + '  (Milk, 2 liters)';
@@ -199,7 +193,7 @@ function render() {
 }
 function showSuggest(q) {
   const box = $('#suggest'), hits = suggestions(q.split(',')[0]);
-  box.innerHTML = hits.map((c) => '<button data-add="' + esc(c[0]) + '"><span>' + foodIcon(c[0], c[1]) + ' ' + esc(c[0]) + '</span><small>' + esc(c[1]) + '</small></button>').join('');
+  box.innerHTML = hits.map((c) => '<button data-add="' + esc(c[0]) + '"><span>' + foodIcon(c[0], c[1]) + ' ' + esc(c[0]) + '</span></button>').join('');
   box.hidden = !hits.length;
 }
 
@@ -209,12 +203,10 @@ function closeSheet() { const sh = $('#sheet'); sh.hidden = true; sh.innerHTML =
 function openEdit(id) {
   const g = S.groceries.find((x) => x.id === id);
   if (!g) return;
-  const cats = (S.catOrder.all || []).concat(['Other']).filter((c, i, a) => a.indexOf(c) === i);
   sheet('<h2>' + foodIcon(g.name, g.cat) + ' Edit item</h2><label>Name</label><input type="text" id="ename" value="' + esc(g.name) + '" maxlength="80">' +
     '<label>Quantity</label><div class="stepper"><button data-q="-1">−</button><span id="eqty">' + g.qty + '</span><button data-q="1">+</button></div>' +
     '<label>Note</label><input type="text" id="enote" value="' + esc(g.note || '') + '" maxlength="120" placeholder="Brand, size…">' +
     '<label>Shop</label><select id="estore">' + S.stores.map((s) => '<option value="' + esc(s.id) + '"' + (s.id === g.store ? ' selected' : '') + '>' + esc(s.name) + '</option>').join('') + '</select>' +
-    '<label>Aisle</label><select id="ecat">' + cats.map((c) => '<option' + (c === g.cat ? ' selected' : '') + '>' + esc(c) + '</option>').join('') + '</select>' +
     '<div class="actions"><button class="del" data-sheet="del">Delete</button><button data-sheet="cancel">Cancel</button><button class="go" data-sheet="save">Save</button></div>');
   $('#sheet').dataset.id = id;
 }
@@ -258,7 +250,7 @@ document.addEventListener('click', (e) => {
   const g = S.groceries.find((x) => x.id === sh.dataset.id);
   if (t.dataset.sheet === 'del' && g) { closeSheet(); return removeItems([g], 'Deleted ' + g.name); }
   if (t.dataset.sheet === 'save' && g) {
-    Object.assign(g, { name: $('#ename').value.trim() || g.name, qty: +$('#eqty').textContent, note: $('#enote').value.trim(), store: $('#estore').value, cat: $('#ecat').value });
+    Object.assign(g, { name: $('#ename').value.trim() || g.name, qty: +$('#eqty').textContent, note: $('#enote').value.trim(), store: $('#estore').value });
     closeSheet(); render(); send({ t: 'put', body: g });
   }
 });
@@ -291,6 +283,15 @@ async function applyWake() {
   } catch (e) { wakeLock = null; }
 }
 
+// ------------------------------------------------------------------ on the wall display this page is shown inside its Shopping tab
+const embedded = new URLSearchParams(location.search).has('embed') || window.parent !== window;
+if (embedded) {
+  document.body.classList.add('embed');
+  // touches here do not reach the dashboard around us, so tell it someone is using the screen (it would go back to Today)
+  document.addEventListener('pointerdown', () => parent.postMessage({ hq: 'touch' }, location.origin), true);
+  window.addEventListener('message', (m) => { if (m.origin === location.origin && m.data && m.data.hq === 'refresh') refresh(true); });
+}
+
 // ------------------------------------------------------------------ start, and stay live
 render(); status(); applyWake();
 refresh();
@@ -303,5 +304,5 @@ try {
   if (!id) { id = 'p' + Math.random().toString(36).slice(2, 12); localStorage.setItem(K.id, id); }
   if (window.EventSource) new EventSource('/api/events?frame=' + id).onmessage = (m) => { try { if (JSON.parse(m.data).cmd === 'refresh') refresh(); } catch (e) {} };
 } catch (e) {}
-if ('serviceWorker' in navigator) navigator.serviceWorker.register('/shop-sw.js', { scope: '/shop' }).catch(() => {});
+if (!embedded && 'serviceWorker' in navigator) navigator.serviceWorker.register('/shop-sw.js', { scope: '/shop' }).catch(() => {});
 window.addEventListener('pagehide', saveCache);

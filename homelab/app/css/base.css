@@ -81,6 +81,7 @@ ul { margin: 0; padding: 0; list-style: none; }
 .view.is-active, .view.is-warming { content-visibility: visible; }
 .view.is-active { z-index: 1; }
 .view--bleed { padding: 0; }
+.shop-frame { width: 100%; height: 100%; border: 0; display: block; background: var(--paper); }
 
 /* ---------------------------------------------------------------- components */
 .card { background: var(--card); border-radius: var(--r); padding: 18px 20px; position: relative; }
