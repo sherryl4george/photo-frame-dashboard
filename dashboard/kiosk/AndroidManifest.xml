@@ -3,6 +3,8 @@
     package="com.wesbos.homehq">
 
   <uses-permission android:name="android.permission.INTERNET" />
+  <!-- Wi-Fi signal strength for the dashboard's frame health list (normal permission, no prompt) -->
+  <uses-permission android:name="android.permission.ACCESS_WIFI_STATE" />
   <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
   <!-- Optional; only used if granted with adb (see kiosk README). -->
   <uses-permission android:name="android.permission.WRITE_SECURE_SETTINGS" />

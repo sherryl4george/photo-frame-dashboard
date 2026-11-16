@@ -117,6 +117,10 @@ public class MainActivity extends Activity {
   final View offline=new View(this);
   final Label portalText=new Label(), offlineTitle=new Label(), offlineText=new Label();
   final Runnable portalCheck=this::checkPortal;
+  // Screen-off hooks that onResume/onPause call; no screen-off is wanted in these scenarios.
+  boolean darkWanted; final Runnable enforceDark=() -> {};
+  static class Worker { void execute(Runnable r) { r.run(); } } final Worker worker=new Worker();
+  static class Dark { void goDark() {} void restore() {} } final Dark backlight=new Dark();
   boolean resumed, retryPending, probing, portalMode, portalFound, portalDismissed, portalFailed, pageFailed;
   long portalSince; String retryUrl, mainUrl; boolean wifi=true; int loads, opened, left, clockNudges;
   void nudgeNetworkTime() { clockNudges++; }

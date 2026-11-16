@@ -46,6 +46,8 @@ import java.net.URL;
 import java.util.HashMap;
 import java.util.Locale;
 import java.util.Map;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 
 /**
  * Full-screen kiosk WebView for the Home HQ wall tablet.
@@ -112,6 +114,18 @@ public class MainActivity extends Activity {
   // A retry is queued: keep the offline screen up until it runs, even if the failed load "finishes".
   private boolean retryPending;
   private boolean resumed;
+  // Screen off (backlight to 0 through su, see Backlight). The commands block, so they run on one worker thread.
+  private Backlight backlight;
+  private final ExecutorService worker = Executors.newSingleThreadExecutor();
+  private boolean darkWanted;
+  private volatile String pageAuthority; // host:port of the page now shown, for the page bridge
+  private final Runnable enforceDark = new Runnable() {
+    @Override public void run() {
+      if (!darkWanted) return;
+      worker.execute(new Runnable() { public void run() { backlight.enforce(); } });
+      handler.postDelayed(this, 1500);
+    }
+  };
   private LinearLayout offline;
   private TextView offlineTitle, offlineText;
   private Button signIn;
@@ -195,6 +209,9 @@ public class MainActivity extends Activity {
         | WindowManager.LayoutParams.FLAG_FULLSCREEN);
 
     web = new WebView(this);
+    backlight = new Backlight(this);
+    worker.execute(new Runnable() { public void run() { backlight.recover(); } });
+    web.addJavascriptInterface(new KioskBridge(this, backlight), "HomeHQKiosk");
     WebSettings s = web.getSettings();
     s.setJavaScriptEnabled(true);
     s.setDomStorageEnabled(true);
@@ -213,6 +230,7 @@ public class MainActivity extends Activity {
       public void onPageStarted(WebView view, String url, Bitmap icon) {
         pageFailed = false;
         mainUrl = url;
+        pageAuthority = Uri.parse(url).getAuthority();
       }
 
       @Override
@@ -337,6 +355,10 @@ public class MainActivity extends Activity {
   protected void onResume() {
     super.onResume();
     resumed = true;
+    if (darkWanted) { // back from Settings or another app: still dark
+      worker.execute(new Runnable() { public void run() { backlight.goDark(); } });
+      handler.postDelayed(enforceDark, 1500);
+    }
     web.resumeTimers();
     web.onResume();
     NavigationService.setDashboardVisible(true);
@@ -355,6 +377,10 @@ public class MainActivity extends Activity {
   protected void onPause() {
     resumed = false;
     cancelExit();
+    handler.removeCallbacks(enforceDark);
+    if (darkWanted) { // leaving the kiosk: never leave other screens black
+      worker.execute(new Runnable() { public void run() { backlight.restore(); } });
+    }
     // pauseTimers affects every WebView in this app process. Native retries need pausing too.
     web.onPause();
     web.pauseTimers();
@@ -426,7 +452,26 @@ public class MainActivity extends Activity {
   // page here too.
   private void load(String url) {
     mainUrl = url;
+    pageAuthority = Uri.parse(url).getAuthority();
     web.loadUrl(url);
+  }
+
+  /** True while the page shown is the saved dashboard address: only then does the page bridge answer. */
+  boolean pageIsDashboard() {
+    String a = pageAuthority;
+    return a != null && a.equals(Uri.parse(savedUrl()).getAuthority());
+  }
+
+  /** The page asked for screen off or on (UI thread). */
+  void setScreenOff(boolean off) {
+    darkWanted = off;
+    handler.removeCallbacks(enforceDark);
+    if (off) {
+      worker.execute(new Runnable() { public void run() { backlight.goDark(); } });
+      handler.postDelayed(enforceDark, 1500);
+    } else {
+      worker.execute(new Runnable() { public void run() { backlight.restore(); } });
+    }
   }
 
   private String savedUrl() {
@@ -808,6 +853,8 @@ public class MainActivity extends Activity {
   protected void onDestroy() {
     unregisterReceiver(networkChange);
     handler.removeCallbacksAndMessages(null);
+    worker.execute(new Runnable() { public void run() { backlight.restore(); } });
+    worker.shutdown();
     if (web != null) web.destroy();
     super.onDestroy();
   }
