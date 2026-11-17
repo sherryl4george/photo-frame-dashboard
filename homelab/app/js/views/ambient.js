@@ -49,7 +49,8 @@
     var p = slide && slide.photos[0], el = $('#ambient .amb-cap');
     if (!el || !p) return;
     var m = App.photoMeta(p);
-    el.innerHTML = (m.onThisDay ? '<b>On this day</b> · ' : '') + (m.place ? App.esc(m.place) + ' · ' : '') + m.date;
+    el.innerHTML = (m.place ? '<div class="amb-cap-place">' + App.esc(m.place) + '</div>' : '') +
+      '<div>' + (m.onThisDay ? '<b>On this day</b> · ' : '') + m.date + '</div>';
   }
 
   // Apply the slideshow settings (Settings > Slideshow): style, seconds per photo, details and weather.

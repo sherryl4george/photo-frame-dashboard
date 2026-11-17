@@ -31,8 +31,9 @@
   function caption(ps, size) {
     var m = App.photoMeta(ps[0]);
     return '<div class="cap cap--' + (size || 'l') + '">' +
-      '<div class="cap-kicker">' + (m.onThisDay ? '<b>On this day</b> · ' : '') + m.kicker + (m.place ? ' · ' + App.esc(m.place) : '') + '</div>' +
+      '<div class="cap-kicker">' + (m.onThisDay ? '<b>On this day</b> · ' : '') + m.kicker + '</div>' +
       '<div class="cap-date">' + (ps.length > 1 ? m.monthYear : m.date) + '</div>' +
+      (m.place ? '<div class="cap-place">' + App.esc(m.place) + '</div>' : '') +
       '</div>';
   }
   function kb(p, still) {
@@ -59,7 +60,7 @@
       var p = ps[0], m = App.photoMeta(p), rot = (Math.random() * 5 - 2.5).toFixed(1);
       return '<div class="slide slide--polaroid"><img class="blurfill" src="' + bg(p) + '" alt="">' +
         '<figure class="polaroid polaroid--' + p.o + '" style="transform:rotate(' + rot + 'deg)"><div class="polaroid-img"><img src="' + src(p, true) + '" alt=""></div>' +
-        '<figcaption>' + (m.place ? App.esc(m.place) + ' · ' : '') + m.monthYear + '</figcaption></figure></div>';
+        '<figcaption>' + (m.place ? '<span class="pl-place">' + App.esc(m.place) + '</span>' : '') + '<span>' + m.monthYear + '</span></figcaption></figure></div>';
     }
   };
 
@@ -132,10 +133,11 @@
       node.classList.add('is-in');
       node.style.opacity = '';
       old.forEach(function (o) { o.remove(); });
+      // Tell the outside captions (home tile, full-screen show) only now, so text never changes before its photo
+      if (self.o.onChange && self.current === slide) self.o.onChange(slide);
     }
     if (first && !first.complete) { first.addEventListener('load', show); first.addEventListener('error', show); setTimeout(show, 2500); }
     else show();
-    if (this.o.onChange) this.o.onChange(slide);
   };
 
   S.next = function () {
