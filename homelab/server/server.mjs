@@ -33,6 +33,7 @@ if (!SECRETS.DASHBOARD_KEY || SECRETS.DASHBOARD_KEY.length < 16) { console.error
 console.log('secrets: ' + (fromEnv.length ? fromEnv.length + ' from the environment (secrets.env)' : 'from secrets.json') + (SECRETS.DASHBOARD_KEY && !process.env.DASHBOARD_KEY ? ', DASHBOARD_KEY from secrets.json' : ''));
 
 const db = new DatabaseSync(path.join(DATA_DIR, 'photoframe.db'));
+db.exec('PRAGMA busy_timeout = 5000'); // wait for the importer's write lock (a big import can hold it for a minute) instead of throwing at once
 db.exec(fs.readFileSync(path.join(HERE, 'schema.sql'), 'utf8'));
 
 // ------------------------------------------------------------------ config the page sees

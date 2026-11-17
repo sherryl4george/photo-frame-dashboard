@@ -83,7 +83,8 @@ export function startMqtt(secrets, onCommand, log = console) {
   client.on('close', () => { up = false; });
   client.on('error', (e) => log.error('mqtt: ' + e.message));
   client.on('message', (topic, payload) => {
-    subs.forEach((x) => { if (matches(x.pattern, topic)) x.handler(topic, payload.toString()); });
+    // One failing handler (e.g. a locked database) must not take the whole server down.
+    subs.forEach((x) => { if (matches(x.pattern, topic)) { try { x.handler(topic, payload.toString()); } catch (e) { log.error('mqtt: handler for ' + topic + ': ' + e.message); } } });
     const m = /^photoframe\/([a-z0-9]{6,40})\/([a-z]+)\/set$/.exec(topic);
     if (!m || !FRAME_ID.test(m[1])) return;
     const c = parseCommand(m[2], payload.toString());
