@@ -131,8 +131,10 @@
     function show() {
       if (shown) return; shown = true;
       node.classList.add('is-in');
+      void node.offsetWidth; // commit opacity:0 first, so the change below animates instead of snapping
       node.style.opacity = '';
-      old.forEach(function (o) { o.remove(); });
+      // The new slide fades in over the old one; the old one goes once it is covered.
+      setTimeout(function () { old.forEach(function (o) { o.remove(); }); }, 1000);
       // Tell the outside captions (home tile, full-screen show) only now, so text never changes before its photo
       if (self.o.onChange && self.current === slide) self.o.onChange(slide);
     }
