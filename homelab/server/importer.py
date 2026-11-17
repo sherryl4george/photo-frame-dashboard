@@ -182,7 +182,11 @@ def ingest_drop(drop, album, staging_root, quiet_s, dry):
         if dry:
             return len(zips)
         for f in put:
-            os.replace(os.path.join(stage, f), os.path.join(album, f))
+            # staging (data/) and album (incoming/) can be different filesystems, so os.replace alone fails
+            # with EXDEV. Copy to a temp name inside album, then rename (atomic within album).
+            tmp = os.path.join(album, ".%s.tmp" % f)
+            shutil.copyfile(os.path.join(stage, f), tmp)
+            os.replace(tmp, os.path.join(album, f))
         for f in gone:
             os.remove(os.path.join(album, f))
         done = os.path.join(drop, "done")
