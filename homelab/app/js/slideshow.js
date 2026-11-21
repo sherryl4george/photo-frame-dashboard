@@ -71,7 +71,9 @@
     this.history = [];
     this.count = 0;
     this.timer = null;
-    this.current = null;
+    this.current = null;   // the slide most recently asked for (may still be loading)
+    this.shown = null;     // the slide actually on screen
+    this.failures = 0;     // slides in a row that could not load
   };
   var S = App.Slideshow.prototype;
 
@@ -113,6 +115,18 @@
     return { layout: layout, photos: ps };
   };
 
+  // Resolves once the image is loaded AND decoded (so the fade never starts on an empty frame); rejects if it can't load.
+  function ready(im) {
+    if (im.decode) return im.decode();
+    return new Promise(function (res, rej) {
+      if (im.complete) return im.naturalWidth ? res() : rej(new Error('broken image'));
+      im.addEventListener('load', function () { res(); });
+      im.addEventListener('error', function () { rej(new Error('image failed')); });
+    });
+  }
+  // The old photo stays up this long while the next one loads; a photo that isn't ready by then is skipped.
+  var LOAD_TIMEOUT = 8000, MAX_SKIPS = 3;
+
   S.render = function (slide) {
     var self = this;
     this.current = slide;
@@ -120,32 +134,49 @@
     wrap.innerHTML = BUILD[slide.layout](slide.photos, this.o);
     var node = wrap.firstChild;
     node.style.opacity = '0';
-    // Fallback look if images can't load (offline)
+    // The blurred backdrop is cosmetic: if it fails, the slide still shows (on the dark background)
     Array.prototype.forEach.call(node.querySelectorAll('img'), function (im) {
       im.addEventListener('error', function () { im.classList.add('is-broken'); });
     });
     var old = Array.prototype.slice.call(this.el.children);
     this.el.appendChild(node);
-    var first = node.querySelector('img:not(.blurfill)');
-    var shown = false;
+    var done = false;
     function show() {
-      if (shown) return; shown = true;
+      if (done) return; done = true;
+      // Superseded while loading (a newer slide was asked for): drop this one, the newer one takes over.
+      if (self.current !== slide) { node.remove(); return; }
+      self.failures = 0;
+      self.shown = slide;
       node.classList.add('is-in');
       void node.offsetWidth; // commit opacity:0 first, so the change below animates instead of snapping
       node.style.opacity = '';
       // The new slide fades in over the old one; the old one goes once it is covered.
       setTimeout(function () { old.forEach(function (o) { o.remove(); }); }, 1000);
       // Tell the outside captions (home tile, full-screen show) only now, so text never changes before its photo
-      if (self.o.onChange && self.current === slide) self.o.onChange(slide);
+      if (self.o.onChange) self.o.onChange(slide);
     }
-    if (first && !first.complete) { first.addEventListener('load', show); first.addEventListener('error', show); setTimeout(show, 2500); }
-    else show();
+    // A photo that won't load must never replace the one on screen: drop it and move on to another.
+    function fail(why) {
+      if (done) return; done = true;
+      node.remove();
+      if (self.current !== slide) return;
+      console.warn('slideshow: skipped ' + slide.photos.map(function (p) { return p.id; }).join(',') + ' (' + why + ')');
+      self.current = self.shown;
+      if (++self.failures <= MAX_SKIPS) self.next();   // else keep what's on screen until the next tick
+    }
+    var main = Array.prototype.slice.call(node.querySelectorAll('img:not(.blurfill)'));
+    var timer = setTimeout(function () { fail('timed out'); }, LOAD_TIMEOUT);
+    Promise.all(main.map(ready)).then(function () { clearTimeout(timer); show(); }, function (e) { clearTimeout(timer); fail(e && e.name || 'load error'); });
   };
 
+  S.remember = function () {
+    var h = this.history;
+    if (this.shown && h[h.length - 1] !== this.shown) h.push(this.shown);
+  };
   S.next = function () {
     var s = this.pick();
     if (!s) return;
-    if (this.current) this.history.push(this.current);
+    this.remember();
     this.render(s);
     this.restart();
   };
@@ -159,7 +190,7 @@
     var p = D.photos.filter(function (x) { return x.id === id; })[0];
     if (!p) return false;
     this.queue = this.queue.filter(function (x) { return x !== p; });
-    if (this.current) this.history.push(this.current);
+    this.remember();
     this.render({ layout: 'cover', photos: [p] });
     this.restart();
     return true;
