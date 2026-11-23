@@ -1,0 +1,20 @@
+# Home Assistant automations.yaml entry: restart the photo frame every night at 12 AM (append to your automations.yaml).
+# Needs Home Assistant 2024.10 or newer (triggers: / actions: / action: syntax), the frame's MQTT device, and
+# kiosk app 1.7+ on a rooted frame (the "Restart frame" button does nothing on an older kiosk).
+# Change button.m15r4_restart_frame to your frame's entity (Settings -> Devices -> your frame -> Restart frame).
+# The id must be unique in your file.
+#
+# The button reaches the frame through the server (MQTT -> server -> page -> kiosk), so it only works while
+# the frame is connected and logged in; HA shows no error when it isn't.
+
+- id: restart_photo_frame_midnight
+  alias: Restart the photo frame at midnight
+  description: Presses the frame's Restart frame button every night at 12 AM.
+  mode: single
+  triggers:
+    - trigger: time
+      at: "00:00:00"
+  actions:
+    - action: button.press
+      target:
+        entity_id: button.m15r4_restart_frame
