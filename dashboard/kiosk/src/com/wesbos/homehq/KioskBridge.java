@@ -12,7 +12,7 @@ import android.webkit.JavascriptInterface;
  * address (see MainActivity.pageIsDashboard), so a page reached any other way gets nothing.
  */
 final class KioskBridge {
-  static final String VERSION = "1.8";
+  static final String VERSION = "1.9";
   private final MainActivity act;
   private final Backlight backlight;
 

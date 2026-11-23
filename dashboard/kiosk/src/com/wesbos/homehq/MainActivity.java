@@ -30,6 +30,7 @@ import android.view.InputDevice;
 import android.view.MotionEvent;
 import android.view.View;
 import android.view.WindowManager;
+import android.webkit.CookieManager;
 import android.webkit.SslErrorHandler;
 import android.webkit.WebResourceRequest;
 import android.webkit.WebResourceResponse;
@@ -78,6 +79,9 @@ public class MainActivity extends Activity {
   static final String DEFAULT_URL = "https://home-dashboard.wesbos.workers.dev/";
   static final String PREFS = "kiosk";
   static final String PREF_URL = "url";
+  // The dashboard key, set with --es dashkey <key>. The kiosk puts it in the dashboard's login cookie
+  // at every load, as a session cookie (no expiry date), so the login never depends on the frame's clock.
+  static final String PREF_KEY = "dashkey";
   static final String PREF_MENU_BUTTON = "menu_button";
   static final String PREF_BOOTANIM_EXIT = "bootanim_exit";
   static final long EXIT_HOLD_MS = 1500;
@@ -350,6 +354,7 @@ public class MainActivity extends Activity {
         dp(72), dp(48), Gravity.BOTTOM | Gravity.LEFT);
     menuPosition.setMargins(dp(12), dp(12), dp(12), dp(12));
     root.addView(menuButton, menuPosition);
+    applyKeyFlag(getIntent());
     applyMenuButtonFlag(getIntent());
     setContentView(root);
     // A fullscreen window does not resize for the on-screen keyboard, so the keyboard would sit on top of the page and
@@ -419,6 +424,7 @@ public class MainActivity extends Activity {
     applyDebugFlag(intent);
     applyHomeFlag(intent);
     applyBootFlag(intent);
+    applyKeyFlag(intent);
     applyMenuButtonFlag(intent);
     applyBootanimFlag(intent);
     String url = urlFrom(intent);
@@ -480,6 +486,7 @@ public class MainActivity extends Activity {
 
   private void load(String url) {
     loadedWithBadClock = !clockIsSet();
+    putLoginCookie(url);
     mainUrl = url;
     pageAuthority = Uri.parse(url).getAuthority();
     web.loadUrl(url);
@@ -896,6 +903,30 @@ public class MainActivity extends Activity {
   }
 
   /** A saved opt-in for panels where the two-finger gesture is unreliable. */
+  /** A "dashkey" extra is saved (an empty one removes it). It is kept in the kiosk's private settings. */
+  private void applyKeyFlag(Intent intent) {
+    if (intent == null || !intent.hasExtra(PREF_KEY)) return;
+    String k = intent.getStringExtra(PREF_KEY);
+    android.content.SharedPreferences.Editor e = getSharedPreferences(PREFS, MODE_PRIVATE).edit();
+    if (k == null || k.isEmpty()) e.remove(PREF_KEY);
+    else if (k.length() >= 16 && k.length() <= 200 && k.matches("[\\x21-\\x7e]+")) e.putString(PREF_KEY, k);
+    else { Log.w(TAG, "Ignoring a dashkey of an unusable shape"); return; }
+    e.commit(); // written now: a restart straight after must not lose it
+  }
+
+  /** Put the saved key in the login cookie for the saved dashboard, before its page loads. */
+  private void putLoginCookie(String url) {
+    String key = getSharedPreferences(PREFS, MODE_PRIVATE).getString(PREF_KEY, null);
+    if (key == null) return;
+    Uri u = Uri.parse(url), saved = Uri.parse(savedUrl());
+    if (u.getScheme() == null || u.getAuthority() == null
+        || !u.getScheme().equalsIgnoreCase(saved.getScheme()) || !u.getAuthority().equalsIgnoreCase(saved.getAuthority())) return;
+    CookieManager cm = CookieManager.getInstance();
+    cm.setAcceptCookie(true);
+    cm.setCookie(u.getScheme() + "://" + u.getAuthority() + "/", "hq=" + Uri.encode(key) + "; Path=/; HttpOnly; SameSite=Lax");
+    cm.flush();
+  }
+
   private void applyMenuButtonFlag(Intent intent) {
     if (intent != null && intent.hasExtra(PREF_MENU_BUTTON)) {
       getSharedPreferences(PREFS, MODE_PRIVATE).edit()
