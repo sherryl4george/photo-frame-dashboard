@@ -126,6 +126,8 @@
       else if (c.cmd === 'slideshow') { App.closeSheet(); App.rest(); }
       else if (c.cmd === 'refresh') { App.refresh('state'); return; }
       else if (c.cmd === 'reload') { location.reload(); return; }
+      // Restart the whole frame (kiosk 1.7+, rooted frames); an older kiosk has no such call, so only the page reloads.
+      else if (c.cmd === 'reboot') { try { if (K && K.reboot) K.reboot(); else location.reload(); } catch (err) {} return; }
       soon();
     }
   }

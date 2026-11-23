@@ -8,11 +8,11 @@ import android.webkit.JavascriptInterface;
 
 /**
  * What the dashboard page may ask of the kiosk, as window.HomeHQKiosk: turn the screen off or on,
- * and read a few harmless details. It only answers while the page shown is the saved dashboard
+ * restart the frame (root), and read a few harmless details. It only answers while the page shown is the saved dashboard
  * address (see MainActivity.pageIsDashboard), so a page reached any other way gets nothing.
  */
 final class KioskBridge {
-  static final String VERSION = "1.6";
+  static final String VERSION = "1.7";
   private final MainActivity act;
   private final Backlight backlight;
 
@@ -44,5 +44,26 @@ final class KioskBridge {
   public void setScreenOff(final boolean off) {
     if (!act.pageIsDashboard()) return;
     act.runOnUiThread(new Runnable() { public void run() { act.setScreenOff(off); } });
+  }
+
+  /**
+   * Restart the frame through root (su). Only for frames where su works without a prompt. The WebView
+   * keeps cookies (the dashboard login) in memory and writes them to disk later, so they are saved and
+   * the disk synced first; a restart straight away can lose the login.
+   */
+  @JavascriptInterface
+  public void reboot() {
+    if (!act.pageIsDashboard()) return;
+    act.runOnUiThread(new Runnable() { public void run() {
+      try { android.webkit.CookieManager.getInstance().flush(); } catch (RuntimeException e) { /* nothing to save */ }
+    } });
+    new Thread(new Runnable() {
+      public void run() {
+        try {
+          Thread.sleep(3000);
+          Runtime.getRuntime().exec(new String[] {"su", "-c", "sync; sleep 1; sync; reboot"});
+        } catch (Exception e) { android.util.Log.w("HomeHQ", "reboot failed: " + e); }
+      }
+    }).start();
   }
 }

@@ -4,7 +4,7 @@
 //   photoframe/bridge/availability        online | offline (the broker publishes "offline" if we vanish)
 //   photoframe/<frame>/availability       online | offline
 //   photoframe/<frame>/state              JSON of the frame's state
-//   photoframe/<frame>/<name>/set         commands from Home Assistant (screen, style, seconds, details, weather, slideshow, reload)
+//   photoframe/<frame>/<name>/set         commands from Home Assistant (screen, style, seconds, details, weather, slideshow, reload, reboot)
 //
 // Only the command names and value ranges below are accepted; anything else is ignored.
 import mqtt from 'mqtt';
@@ -22,7 +22,7 @@ export function parseCommand(key, payload) {
     case 'style': return STYLES.includes(v) ? { cmd: 'style', value: v } : null;
     case 'seconds': { const n = Math.round(Number(v) / 5) * 5; return Number.isFinite(n) && n >= 5 && n <= 120 ? { cmd: 'seconds', value: n } : null; }
     case 'details': case 'weather': { const b = on(v); return b === null ? null : { cmd: key, value: b }; }
-    case 'slideshow': case 'reload': return v === 'PRESS' ? { cmd: key, value: true } : null;
+    case 'slideshow': case 'reload': case 'reboot': return v === 'PRESS' ? { cmd: key, value: true } : null;
     default: return null;
   }
 }
@@ -61,6 +61,7 @@ export function startMqtt(secrets, onCommand, log = console) {
       [`switch/${id}/weather`]: base('weather', { name: 'Show weather', icon: 'mdi:weather-partly-cloudy', value_template: onoff('value_json.slideshow.weather'), command_topic: t('weather'), payload_on: 'ON', payload_off: 'OFF', entity_category: 'config' }),
       [`button/${id}/slideshow`]: { unique_id: 'photoframe_' + id + '_slideshow', device, availability: avail, availability_mode: 'all', name: 'Start slideshow', icon: 'mdi:play-box', command_topic: t('slideshow'), payload_press: 'PRESS' },
       [`button/${id}/reload`]: { unique_id: 'photoframe_' + id + '_reload', device, availability: avail, availability_mode: 'all', name: 'Reload page', icon: 'mdi:refresh', command_topic: t('reload'), payload_press: 'PRESS', entity_category: 'config' },
+      [`button/${id}/reboot`]: { unique_id: 'photoframe_' + id + '_reboot', device, availability: avail, availability_mode: 'all', name: 'Restart frame', icon: 'mdi:restart', command_topic: t('reboot'), payload_press: 'PRESS', entity_category: 'config' },
       [`sensor/${id}/mode`]: base('mode', { name: 'Mode', icon: 'mdi:view-dashboard', value_template: '{{ value_json.mode }}' }),
       [`sensor/${id}/wifi`]: base('wifi', { name: 'Wi-Fi signal', device_class: 'signal_strength', unit_of_measurement: 'dBm', state_class: 'measurement', value_template: "{{ value_json.rssi if value_json.rssi is not none else 'unknown' }}", entity_category: 'diagnostic' }),
       [`sensor/${id}/version`]: base('version', { name: 'Software version', value_template: '{{ value_json.version }}', entity_category: 'diagnostic' }),
