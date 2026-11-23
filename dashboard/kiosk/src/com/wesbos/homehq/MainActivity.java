@@ -165,6 +165,15 @@ public class MainActivity extends Activity {
   private final BroadcastReceiver networkChange = new BroadcastReceiver() {
     @Override
     public void onReceive(Context context, Intent intent) {
+      // A frame with no battery clock boots in 1969 and gets the real time from the network a little
+      // later. A page loaded before then gets a login cookie that expires in 1970, so it is dead the
+      // moment the clock is set. When the clock becomes right, load the saved page again.
+      if (loadedWithBadClock && clockIsSet() && resumed && offline.getVisibility() != View.VISIBLE) {
+        Log.i(TAG, "Clock set after the page loaded, loading it again");
+        loadedWithBadClock = false;
+        load(savedUrl());
+        return;
+      }
       if (!resumed || retryUrl == null || offline.getVisibility() != View.VISIBLE || !wifiConnected()) return;
       Log.i(TAG, "Wi-Fi connected or clock changed, retrying now");
       showOffline();
@@ -462,7 +471,15 @@ public class MainActivity extends Activity {
 
   // Some WebViews report the page's certificate error before onPageStarted, so remember the
   // page here too.
+  private boolean loadedWithBadClock;
+
+  /** False until the frame has the real time: a frame with no battery clock starts at 1970. */
+  private static boolean clockIsSet() {
+    return System.currentTimeMillis() > 1704067200000L; // 2024-01-01
+  }
+
   private void load(String url) {
+    loadedWithBadClock = !clockIsSet();
     mainUrl = url;
     pageAuthority = Uri.parse(url).getAuthority();
     web.loadUrl(url);
